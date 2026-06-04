@@ -37,14 +37,14 @@ def create_category_group(user_id: int, name: str, type: str):
         )
         return result.inserted_primary_key[0]
 
-def create_category(group_id: int, name: str, color: str = None):
+def create_category(group_id: int, name: str, color: str = None, is_system: bool = False):
     with get_conn() as conn:
         result = conn.execute(
             insert(category).values(
                 group_id=group_id,
                 name=name,
                 color=color,
-                is_system=False,
+                is_system=is_system,
                 is_active=True
             )
         )

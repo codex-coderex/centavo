@@ -50,13 +50,13 @@ def complete_goal(goal_id: int):
         )
 
 def fund_goal(goal_id: int, account_id: int,
-              amount: float, txn_date: str):
+              amount: float, txn_date: str, category_id: int):
     with get_conn() as conn:
-        # debit the account and link to goal in one transaction
         conn.execute(
             insert(transaction).values(
                 account_id=account_id,
                 goal_id=goal_id,
+                category_id=category_id,
                 amount=-amount,
                 txn_date=txn_date,
                 status="cleared",

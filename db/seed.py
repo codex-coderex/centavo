@@ -54,6 +54,9 @@ def seed_required(user_id: int):
             ("Parking", "#90A4AE"),
             ("Vehicle Maintenance", "#546E7A"),
         ]),
+        ("Transfer", "expense", [
+            ("Transfer", "#607D8B"),
+        ]),
         ("Health", "expense", [
             ("Medical", "#00ACC1"),
             ("Pharmacy", "#00897B"),
@@ -81,12 +84,15 @@ def seed_required(user_id: int):
             ("Donations", "#9E9E9E"),
             ("Others", "#757575"),
         ]),
+        ("Uncategorized", "expense", [
+            ("Uncategorized", "#9E9E9E"),
+        ]),
     ]
 
     for group_name, group_type, categories in groups:
         group_id = create_category_group(user_id, group_name, group_type)
         for cat_name, color in categories:
-            create_category(group_id, cat_name, color)
+            create_category(group_id, cat_name, color, is_system=True)
 
 def seed_sample_data(user_id: int, account_id: int):
 

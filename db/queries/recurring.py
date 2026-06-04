@@ -1,5 +1,5 @@
 from sqlalchemy import select, insert, update
-from db.tables import recurring, transaction
+from db.tables import recurring, transaction, account
 from db.connection import get_conn
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -8,8 +8,8 @@ def get_recurring(user_id: int):
     with get_conn() as conn:
         result = conn.execute(
             select(recurring)
-            .join(recurring.c.account_id)
-            .where(recurring.c.user_id == user_id)
+            .join(account, recurring.c.account_id == account.c.account_id)
+            .where(account.c.user_id == user_id)
         )
         return [dict(row._mapping) for row in result]
 
@@ -22,17 +22,17 @@ def get_due_recurring():
         )
         return [dict(row._mapping) for row in result]
 
-def create_recurring(user_id: int, account_id: int, amount: float,
-                     frequency: str, next_due: str,
+def create_recurring(account_id: int, amount: float,
+                    interval: int, frequency_unit: str, next_due: str,
                      category_id: int = None, merchant: str = None,
                      end_date: str = None):
     with get_conn() as conn:
         result = conn.execute(
             insert(recurring).values(
-                user_id=user_id,
                 account_id=account_id,
                 amount=amount,
-                frequency=frequency,
+                interval=interval,
+                frequency_unit=frequency_unit,
                 next_due=next_due,
                 category_id=category_id,
                 merchant=merchant,
@@ -69,7 +69,7 @@ def generate_transaction(recurring_id: int):
         )
 
         # calculate next due date
-        next_due = _next_due(r["next_due"], r["frequency"])
+        next_due = _next_due(r["next_due"], r["interval"], r["frequency_unit"])
 
         # deactivate if past end date
         if r["end_date"] and next_due > r["end_date"]:
@@ -101,17 +101,13 @@ def resume_recurring(recurring_id: int):
             .values(status="active")
         )
 
-def _next_due(current_due: datetime, frequency: str) -> datetime:
+def _next_due(current_due: datetime, interval: int, frequency_unit: str) -> datetime:
     if isinstance(current_due, str):
         current_due = datetime.fromisoformat(current_due)
-    match frequency:
-        case "daily":
-            return current_due + relativedelta(days=1)
-        case "weekly":
-            return current_due + relativedelta(weeks=1)
-        case "monthly":
-            return current_due + relativedelta(months=1)
-        case "yearly":
-            return current_due + relativedelta(years=1)
+    match frequency_unit:
+        case "day":   return current_due + relativedelta(days=interval)
+        case "week":  return current_due + relativedelta(weeks=interval)
+        case "month": return current_due + relativedelta(months=interval)
+        case "year":  return current_due + relativedelta(years=interval)
         case _:
-            raise ValueError(f"Unknown frequency: {frequency}")
+            raise ValueError(f"Unknown frequency_unit: {frequency_unit}")
