@@ -21,7 +21,8 @@ def get_transaction(transaction_id: int):
 
 def create_transaction(account_id: int, amount: float, txn_date: str,
                         merchant: str = None, category_id: int = None,
-                        note: str = None, goal_id: int = None):
+                        note: str = None, goal_id: int = None,
+                        recurring_id: int = None):
     with get_conn() as conn:
         result = conn.execute(
             insert(transaction).values(
@@ -32,6 +33,7 @@ def create_transaction(account_id: int, amount: float, txn_date: str,
                 category_id=category_id,
                 note=note,
                 goal_id=goal_id,
+                recurring_id=recurring_id,
                 status="cleared",
                 needs_review=False,
                 updated_at=datetime.now()
