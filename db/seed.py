@@ -81,6 +81,9 @@ def seed_required(user_id: int):
             ("Donations", "#9E9E9E"),
             ("Others", "#757575"),
         ]),
+        ("Uncategorized", "expense", [
+            ("Uncategorized", "#9E9E9E"),
+        ]),
     ]
 
     for group_name, group_type, categories in groups:

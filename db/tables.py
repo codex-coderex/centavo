@@ -36,7 +36,7 @@ category_group = Table("category_group", metadata,
 )
 
 category = Table("category", metadata,
-    Column("category_id", Integer, primary_key=True, autoincrement=True),
+    Column("category_id", Integer, primary_key=True, autoincrement=True, nullable=False),
     Column("group_id", Integer, ForeignKey("category_group.group_id"), nullable=False),
     Column("name", String, nullable=False),
     Column("color", String),
