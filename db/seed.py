@@ -54,6 +54,9 @@ def seed_required(user_id: int):
             ("Parking", "#90A4AE"),
             ("Vehicle Maintenance", "#546E7A"),
         ]),
+        ("Transfer", "expense", [
+            ("Transfer", "#607D8B"),
+        ]),
         ("Health", "expense", [
             ("Medical", "#00ACC1"),
             ("Pharmacy", "#00897B"),

@@ -42,7 +42,7 @@ def create_transaction(account_id: int, amount: float, txn_date: str,
         return result.inserted_primary_key[0]
 
 def create_transfer(from_account_id: int, to_account_id: int,
-                    amount: float, txn_date: str):
+                    amount: float, txn_date: str, category_id: int):
     with get_conn() as conn:
         # debit side
         debit = conn.execute(
@@ -50,6 +50,7 @@ def create_transfer(from_account_id: int, to_account_id: int,
                 account_id=from_account_id,
                 amount=-amount,
                 txn_date=txn_date,
+                category_id=category_id,
                 status="cleared",
                 needs_review=False,
                 updated_at=datetime.now()
@@ -63,6 +64,7 @@ def create_transfer(from_account_id: int, to_account_id: int,
                 account_id=to_account_id,
                 amount=amount,
                 txn_date=txn_date,
+                category_id=category_id,
                 transfer_pair_id=debit_id,
                 status="cleared",
                 needs_review=False,
