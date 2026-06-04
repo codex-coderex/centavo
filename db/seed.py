@@ -89,7 +89,7 @@ def seed_required(user_id: int):
     for group_name, group_type, categories in groups:
         group_id = create_category_group(user_id, group_name, group_type)
         for cat_name, color in categories:
-            create_category(group_id, cat_name, color)
+            create_category(group_id, cat_name, color, is_system=True)
 
 def seed_sample_data(user_id: int, account_id: int):
 
