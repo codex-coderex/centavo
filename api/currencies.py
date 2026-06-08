@@ -11,3 +11,4 @@ def get_currency(code):
 
 def create_currency(code, name, symbol, decimal_places=2):
     q.create_currency(code, name, symbol, decimal_places)
+    return {"code": code}

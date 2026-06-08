@@ -1,8 +1,10 @@
 import db.queries.transactions as q
 
+def get_transactions_by_user(user_id):
+    return q.get_transactions_by_user(user_id)
 
-def get_transactions(account_id):
-    return q.get_transactions(account_id)
+def get_transactions_by_account(account_id):
+    return q.get_transactions_by_account(account_id)
 
 
 def get_transaction(transaction_id):

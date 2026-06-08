@@ -1,9 +1,19 @@
 from sqlalchemy import select, insert, update
-from db.tables import transaction
+from db.tables import transaction, account
 from db.connection import get_conn
 from datetime import datetime
 
-def get_transactions(account_id: int):
+def get_transactions_by_user(user_id: int):
+    with get_conn() as conn:
+        result = conn.execute(
+            select(transaction)
+            .join(account, transaction.c.account_id == account.c.account_id)
+            .where(account.c.user_id == user_id)
+            .order_by(transaction.c.txn_date.desc())
+        )
+        return [dict(row._mapping) for row in result]
+
+def get_transactions_by_account(account_id: int):
     with get_conn() as conn:
         result = conn.execute(
             select(transaction).where(transaction.c.account_id == account_id)
