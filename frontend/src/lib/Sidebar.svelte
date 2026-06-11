@@ -7,13 +7,22 @@
     { path: '/recurring', label: 'Recurring', icon: '↻' },
     { path: '/settings', label: 'Settings', icon: '⚙' },
   ]
+
+  let currentHash = window.location.hash.replace('#', '') || '/'
+
+  window.addEventListener('hashchange', () => {
+    currentHash = window.location.hash.replace('#', '') || '/'
+  })
 </script>
 
 <nav class="sidebar">
-  <div class="logo">Centavo</div>
+  <div class="logo">
+    <span class="logo-icon">C</span>
+    <span class="logo-text">Centavo</span>
+  </div>
   <ul>
     {#each links as link}
-      <li>
+      <li class:active={currentHash === link.path}>
         <a href="#{link.path}">
           <span class="icon">{link.icon}</span>
           <span>{link.label}</span>
@@ -27,27 +36,53 @@
   .sidebar {
     width: 220px;
     height: 100vh;
-    background: #1a1f2e;
+    background: #ffffff;
     display: flex;
     flex-direction: column;
     padding: 24px 16px;
     position: fixed;
     left: 0;
     top: 0;
+    border-right: 1px solid #f0f0f0;
   }
 
   .logo {
-    font-size: 20px;
-    font-weight: 700;
-    color: #ffffff;
-    margin-bottom: 40px;
+    margin-bottom: 36px;
     padding-left: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    background: #4f46e5;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: 800;
+    font-family: Georgia, 'Times New Roman', serif;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    font-size: 19px;
+    font-weight: 800;
+    color: #1a1a2e;
+    letter-spacing: -0.03em;
   }
 
   ul {
     list-style: none;
     padding: 0;
     margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   li a {
@@ -56,19 +91,26 @@
     gap: 12px;
     padding: 10px 12px;
     border-radius: 8px;
-    color: #8b92a5;
+    color: #6b7280;
     text-decoration: none;
     font-size: 14px;
-    transition: all 0.2s;
+    font-weight: 500;
+    transition: all 0.15s;
   }
 
   li a:hover {
-    background: #252b3b;
-    color: #ffffff;
+    background: #f5f3ff;
+    color: #4f46e5;
+  }
+
+  li.active a {
+    background: #ede9fe;
+    color: #4f46e5;
+    font-weight: 600;
   }
 
   .icon {
-    font-size: 16px;
+    font-size: 15px;
     width: 20px;
     text-align: center;
   }
