@@ -44,29 +44,6 @@ category = Table("category", metadata,
     Column("is_active", Boolean, nullable=False, default=True),
 )
 
-tag = Table("tag", metadata,
-    Column("tag_id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
-    Column("name", String, nullable=False),
-    Column("color", String),
-)
-
-transaction = Table("transaction", metadata,
-    Column("transaction_id", Integer, primary_key=True, autoincrement=True),
-    Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
-    Column("category_id", Integer, ForeignKey("category.category_id")),
-    Column("recurring_id", Integer, ForeignKey("recurring.recurring_id")),
-    Column("transfer_pair_id", Integer, ForeignKey("transaction.transaction_id")),
-    Column("goal_id", Integer, ForeignKey("goal.goal_id")),  # ← added
-    Column("merchant", String),
-    Column("amount", Numeric, nullable=False),
-    Column("txn_date", DateTime, nullable=False),
-    Column("status", String, nullable=False, default="cleared"),
-    Column("needs_review", Boolean, nullable=False, default=False),
-    Column("note", Text),
-    Column("updated_at", DateTime),
-)
-
 recurring = Table("recurring", metadata,
     Column("recurring_id", Integer, primary_key=True, autoincrement=True),
     Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
@@ -105,6 +82,29 @@ goal = Table("goal", metadata,
     Column("target_amount", Numeric, nullable=False),
     Column("target_date", DateTime),
     Column("status", String, nullable=False, default="active"),
+)
+
+tag = Table("tag", metadata,
+    Column("tag_id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
+    Column("name", String, nullable=False),
+    Column("color", String),
+)
+
+transaction = Table("transaction", metadata,
+    Column("transaction_id", Integer, primary_key=True, autoincrement=True),
+    Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
+    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=False),
+    Column("recurring_id", Integer, ForeignKey("recurring.recurring_id")),
+    Column("transfer_pair_id", Integer, ForeignKey("transaction.transaction_id")),
+    Column("goal_id", Integer, ForeignKey("goal.goal_id")),  
+    Column("merchant", String),
+    Column("amount", Numeric, nullable=False),
+    Column("txn_date", DateTime, nullable=False),
+    Column("status", String, nullable=False, default="cleared"),
+    Column("needs_review", Boolean, nullable=False, default=False),
+    Column("note", Text),
+    Column("updated_at", DateTime),
 )
 
 transaction_tag = Table("transaction_tag", metadata,

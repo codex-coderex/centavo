@@ -1,4 +1,4 @@
-from sqlalchemy import select, insert, update
+from sqlalchemy import select, insert, update, delete
 from db.tables import budget, budget_item
 from db.connection import get_conn
 
@@ -42,7 +42,7 @@ def update_budget(budget_id: int, **kwargs):
 def delete_budget(budget_id: int):
     with get_conn() as conn:
         conn.execute(
-            budget.delete().where(budget.c.budget_id == budget_id)
+            delete(budget).where(budget.c.budget_id == budget_id) 
         )
 
 def get_budget_items(budget_id: int):
@@ -76,6 +76,6 @@ def update_budget_item(budget_item_id: int, **kwargs):
 def delete_budget_item(budget_item_id: int):
     with get_conn() as conn:
         conn.execute(
-            budget_item.delete()
+            delete(budget_item)
             .where(budget_item.c.budget_item_id == budget_item_id)
         )

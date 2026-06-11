@@ -4,9 +4,8 @@ from db.queries.users import create_user, get_all_users
 from db.queries.accounts import create_account
 from db.queries.transactions import create_transaction
 from db.connection import get_conn
-from db.tables import currency, category_group
+from db.tables import currency
 from sqlalchemy import select
-from datetime import datetime
 
 def is_fresh_db():
     with get_conn() as conn:
@@ -89,30 +88,35 @@ def seed_required(user_id: int):
         ]),
     ]
 
+    category_ids = {}
+
     for group_name, group_type, categories in groups:
         group_id = create_category_group(user_id, group_name, group_type)
         for cat_name, color in categories:
-            create_category(group_id, cat_name, color, is_system=True)
+            cat_id = create_category(group_id, cat_name, color, is_system=True)
+            category_ids[cat_name] = cat_id
 
-def seed_sample_data(user_id: int, account_id: int):
+    return category_ids
 
+def seed_sample_data(user_id: int, account_id: int, category_ids: dict):
     transactions = [
-        (account_id, 25000,   "2025-01-01", "Company Inc",    "Salary"),
-        (account_id, -1500,   "2025-01-03", "SM Supermarket", "Groceries"),
-        (account_id, -500,    "2025-01-05", "Jollibee",       "Dining Out"),
-        (account_id, -3000,   "2025-01-07", "Meralco",        "Utilities"),
-        (account_id, -800,    "2025-01-10", "Grab",           "Fare"),
-        (account_id, 5000,    "2025-01-15", "Client A",       "Freelance"),
-        (account_id, -2000,   "2025-01-18", "Mercury Drug",   "Pharmacy"),
-        (account_id, -1200,   "2025-01-20", "Puregold",       "Groceries"),
+        (account_id, 25000,  "2025-01-01", "Company Inc",    "Salary"),
+        (account_id, -1500,  "2025-01-03", "SM Supermarket", "Groceries"),
+        (account_id, -500,   "2025-01-05", "Jollibee",       "Dining Out"),
+        (account_id, -3000,  "2025-01-07", "Meralco",        "Electricity"),  
+        (account_id, -800,   "2025-01-10", "Grab",           "Fare"),
+        (account_id, 5000,   "2025-01-15", "Client A",       "Freelance"),
+        (account_id, -2000,  "2025-01-18", "Mercury Drug",   "Pharmacy"),
+        (account_id, -1200,  "2025-01-20", "Puregold",       "Groceries"),
     ]
 
-    for account_id, amount, txn_date, merchant, _ in transactions:
+    for acct_id, amount, txn_date, merchant, cat_name in transactions:
         create_transaction(
-            account_id=account_id,
+            account_id=acct_id,
             amount=amount,
             txn_date=txn_date,
-            merchant=merchant
+            merchant=merchant,
+            category_id=category_ids[cat_name]
         )
 
 def run_seed(sample_data: bool = False):
@@ -127,7 +131,7 @@ def run_seed(sample_data: bool = False):
     user_id = create_user("Me")
 
     # always seed required data
-    seed_required(user_id)
+    category_ids = seed_required(user_id)
 
     # optionally seed sample data
     if sample_data:
@@ -137,4 +141,4 @@ def run_seed(sample_data: bool = False):
             type="checking",
             currency_code="PHP"
         )
-        seed_sample_data(user_id, account_id)
+        seed_sample_data(user_id, account_id, category_ids)
