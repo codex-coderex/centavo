@@ -1,38 +1,48 @@
-import db.queries.tags as q
+import services.tag_service as service
 
 
 def get_tags(user_id):
-    return q.get_tags(user_id)
+    return service.get_tags(user_id)
 
 
 def get_tag(tag_id):
-    return q.get_tag(tag_id)
+    return service.get_tag(tag_id)
 
 
 def create_tag(user_id, name, color=None):
-    tag_id = q.create_tag(user_id, name, color)
-    return {"tag_id": tag_id}
+    try:
+        return service.create_tag(user_id, name, color=color)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
 def update_tag(tag_id, name=None, color=None):
-    kwargs = {k: v for k, v in {
-        "name": name,
-        "color": color,
-    }.items() if v is not None}
-    q.update_tag(tag_id, **kwargs)
+    try:
+        service.update_tag(tag_id, name=name, color=color)
+        return {"ok": True}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
 def delete_tag(tag_id):
-    q.delete_tag(tag_id)
+    try:
+        service.delete_tag(tag_id)
+        return {"ok": True}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
 def get_transaction_tags(transaction_id):
-    return q.get_transaction_tags(transaction_id)
+    return service.get_transaction_tags(transaction_id)
 
 
 def add_tag_to_transaction(transaction_id, tag_id):
-    q.add_tag_to_transaction(transaction_id, tag_id)
+    try:
+        service.add_tag_to_transaction(transaction_id, tag_id)
+        return {"ok": True}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
 def remove_tag_from_transaction(transaction_id, tag_id):
-    q.remove_tag_from_transaction(transaction_id, tag_id)
+    service.remove_tag_from_transaction(transaction_id, tag_id)

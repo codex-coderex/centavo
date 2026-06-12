@@ -1,14 +1,12 @@
-import db.queries.currency as q
+import services.currency_service as service
 
 
 def get_currencies():
-    return q.get_currencies()
+    return service.get_currencies()
 
 
 def get_currency(code):
-    return q.get_currency(code)
-
-
-def create_currency(code, name, symbol, decimal_places=2):
-    q.create_currency(code, name, symbol, decimal_places)
-    return {"currency_code": code}
+    try:
+        return service.get_currency(code)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
