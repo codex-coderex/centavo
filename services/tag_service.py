@@ -26,6 +26,9 @@ def create_tag(user_id: int, name: str, color: str | None = None):
 
 
 def update_tag(tag_id: int, name: str | None = None, color: str | None = None):
+    if tags_q.get_tag(tag_id) is None:
+        raise ValueError("Tag does not exist")
+
     kwargs = {}
 
     if name is not None:
@@ -42,6 +45,9 @@ def update_tag(tag_id: int, name: str | None = None, color: str | None = None):
 
 
 def delete_tag(tag_id: int):
+    if tags_q.get_tag(tag_id) is None:
+        raise ValueError("Tag does not exist")
+
     tags_q.delete_tag(tag_id)
 
 

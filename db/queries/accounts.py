@@ -9,6 +9,7 @@ def get_accounts(user_id: int):
             select(account)
             .where(account.c.user_id == user_id)
             .where(account.c.status == "active")
+            .order_by(account.c.name)
         )
         return [dict(row._mapping) for row in result]
 
@@ -22,26 +23,30 @@ def get_account(account_id: int):
         return dict(row._mapping) if row else None
 
 
-def create_account(user_id: int, name: str, type: str, currency_code: str):
+def create_account(user_id: int, name: str, type: str):
     with get_conn() as conn:
         result = conn.execute(
             insert(account).values(
                 user_id=user_id,
                 name=name,
                 type=type,
-                currency_code=currency_code,
-                status="active",
             )
         )
         return result.inserted_primary_key[0]
 
 
 def update_account(account_id: int, **kwargs):
+    allowed = {"name", "type", "status"}
+    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+
+    if not clean_values:
+        return
+
     with get_conn() as conn:
         conn.execute(
             update(account)
             .where(account.c.account_id == account_id)
-            .values(**kwargs)
+            .values(**clean_values)
         )
 
 

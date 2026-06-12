@@ -21,10 +21,12 @@ def get_currency(code: str):
         return dict(row._mapping) if row else None
 
 
-def seed_currency(code: str, name: str, symbol: str, decimal_places: int):
+def seed_currency(code: str, name: str, symbol: str, decimal_places: int = 2):
     with get_conn() as conn:
         conn.execute(
-            insert(currency).values(
+            insert(currency)
+            .prefix_with("OR IGNORE")
+            .values(
                 code=code.upper(),
                 name=name,
                 symbol=symbol,

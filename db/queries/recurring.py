@@ -10,6 +10,7 @@ def get_recurring(user_id: int):
             select(recurring)
             .join(account, recurring.c.account_id == account.c.account_id)
             .where(account.c.user_id == user_id)
+            .order_by(recurring.c.next_due)
         )
         return [dict(row._mapping) for row in result]
 
@@ -55,18 +56,33 @@ def create_recurring(
                 category_id=category_id,
                 merchant=merchant,
                 end_date=end_date,
-                status="active",
             )
         )
         return result.inserted_primary_key[0]
 
 
 def update_recurring(recurring_id: int, **kwargs):
+    allowed = {
+        "account_id",
+        "amount_minor",
+        "interval",
+        "frequency_unit",
+        "next_due",
+        "category_id",
+        "merchant",
+        "end_date",
+        "status",
+    }
+    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+
+    if not clean_values:
+        return
+
     with get_conn() as conn:
         conn.execute(
             update(recurring)
             .where(recurring.c.recurring_id == recurring_id)
-            .values(**kwargs)
+            .values(**clean_values)
         )
 
 

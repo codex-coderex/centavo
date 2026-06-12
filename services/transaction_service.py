@@ -2,8 +2,9 @@ from db.connection import get_conn
 import db.queries.transactions as transactions_q
 import db.queries.accounts as accounts_q
 import db.queries.categories as categories_q
+from services.currency_service import get_account_decimal_places
 from utils.money import to_minor_units
-from utils.enums import TransactionStatus
+from utils.enums import TransactionStatus, normalize_enum_value
 
 
 def get_transactions_by_user(user_id: int):
@@ -18,6 +19,27 @@ def get_transaction(transaction_id: int):
     return transactions_q.get_transaction(transaction_id)
 
 
+def _get_account(account_id: int):
+    account = accounts_q.get_account(account_id)
+
+    if account is None:
+        raise ValueError("Account does not exist")
+
+    return account
+
+
+def _ensure_category_exists(category_id: int):
+    category = categories_q.get_category(category_id)
+
+    if category is None:
+        raise ValueError("Category does not exist")
+
+    if not category["is_active"]:
+        raise ValueError("Category is inactive")
+
+    return category
+
+
 def create_transaction(
     account_id: int,
     amount,
@@ -27,14 +49,11 @@ def create_transaction(
     note: str | None = None,
     goal_id: int | None = None,
     recurring_id: int | None = None,
-    decimal_places: int = 2,
 ):
-    if accounts_q.get_account(account_id) is None:
-        raise ValueError("Account does not exist")
+    _get_account(account_id)
+    _ensure_category_exists(category_id)
 
-    if categories_q.get_category(category_id) is None:
-        raise ValueError("Category does not exist")
-
+    decimal_places = get_account_decimal_places(account_id)
     amount_minor = to_minor_units(amount, decimal_places)
 
     transaction_id = transactions_q.create_transaction(
@@ -57,20 +76,19 @@ def create_transfer(
     amount,
     txn_date: str,
     category_id: int,
-    decimal_places: int = 2,
 ):
     if from_account_id == to_account_id:
         raise ValueError("Cannot transfer to the same account")
 
-    if accounts_q.get_account(from_account_id) is None:
-        raise ValueError("Source account does not exist")
+    from_account = _get_account(from_account_id)
+    to_account = _get_account(to_account_id)
 
-    if accounts_q.get_account(to_account_id) is None:
-        raise ValueError("Destination account does not exist")
+    if from_account["user_id"] != to_account["user_id"]:
+        raise ValueError("Cannot transfer between accounts owned by different users")
 
-    if categories_q.get_category(category_id) is None:
-        raise ValueError("Category does not exist")
+    _ensure_category_exists(category_id)
 
+    decimal_places = get_account_decimal_places(from_account_id)
     amount_minor = to_minor_units(amount, decimal_places)
 
     if amount_minor <= 0:
@@ -120,9 +138,10 @@ def update_transaction(
     status: str | None = None,
     needs_review: bool | None = None,
     txn_date: str | None = None,
-    decimal_places: int = 2,
 ):
-    if transactions_q.get_transaction(transaction_id) is None:
+    transaction = transactions_q.get_transaction(transaction_id)
+
+    if transaction is None:
         raise ValueError("Transaction does not exist")
 
     kwargs = {}
@@ -131,21 +150,22 @@ def update_transaction(
         kwargs["merchant"] = merchant
 
     if amount is not None:
+        decimal_places = get_account_decimal_places(transaction["account_id"])
         kwargs["amount_minor"] = to_minor_units(amount, decimal_places)
 
     if category_id is not None:
-        if categories_q.get_category(category_id) is None:
-            raise ValueError("Category does not exist")
+        _ensure_category_exists(category_id)
         kwargs["category_id"] = category_id
 
     if note is not None:
         kwargs["note"] = note
 
     if status is not None:
-        status = status.strip().lower()
-        if status not in TransactionStatus:
-            raise ValueError("Invalid transaction status")
-        kwargs["status"] = status
+        kwargs["status"] = normalize_enum_value(
+            status,
+            TransactionStatus,
+            "Invalid transaction status",
+        )
 
     if needs_review is not None:
         kwargs["needs_review"] = needs_review

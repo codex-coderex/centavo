@@ -41,3 +41,16 @@ class TransactionStatus(StrEnum):
     PENDING = "pending"
     CLEARED = "cleared"
     VOID = "void"
+
+
+def enum_values(enum_cls) -> set[str]:
+    return {member.value for member in enum_cls}
+
+
+def normalize_enum_value(value: str, enum_cls, error_message: str) -> str:
+    value = value.strip().lower()
+
+    if value not in enum_values(enum_cls):
+        raise ValueError(error_message)
+
+    return value

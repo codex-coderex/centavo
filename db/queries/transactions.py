@@ -80,9 +80,6 @@ def create_transaction_with_conn(
             note=note,
             goal_id=goal_id,
             recurring_id=recurring_id,
-            status="cleared",
-            needs_review=False,
-            updated_at=datetime.now(),
         )
     )
     return result.inserted_primary_key[0]
@@ -94,10 +91,25 @@ def update_transaction(transaction_id: int, **kwargs):
 
 
 def update_transaction_with_conn(conn, transaction_id: int, **kwargs):
-    kwargs["updated_at"] = datetime.now()
+    allowed = {
+        "account_id",
+        "amount_minor",
+        "txn_date",
+        "category_id",
+        "merchant",
+        "note",
+        "goal_id",
+        "recurring_id",
+        "transfer_pair_id",
+        "status",
+        "needs_review",
+    }
+
+    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+    clean_values["updated_at"] = datetime.now()
 
     conn.execute(
         update(transaction)
         .where(transaction.c.transaction_id == transaction_id)
-        .values(**kwargs)
+        .values(**clean_values)
     )

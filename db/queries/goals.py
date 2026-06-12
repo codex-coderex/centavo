@@ -6,7 +6,9 @@ from db.connection import get_conn
 def get_goals(user_id: int):
     with get_conn() as conn:
         result = conn.execute(
-            select(goal).where(goal.c.user_id == user_id)
+            select(goal)
+            .where(goal.c.user_id == user_id)
+            .order_by(goal.c.status, goal.c.target_date)
         )
         return [dict(row._mapping) for row in result]
 
@@ -35,18 +37,29 @@ def create_goal(
                 target_amount_minor=target_amount_minor,
                 target_date=target_date,
                 account_id=account_id,
-                status="active",
             )
         )
         return result.inserted_primary_key[0]
 
 
 def update_goal(goal_id: int, **kwargs):
+    allowed = {
+        "name",
+        "target_amount_minor",
+        "account_id",
+        "target_date",
+        "status",
+    }
+    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+
+    if not clean_values:
+        return
+
     with get_conn() as conn:
         conn.execute(
             update(goal)
             .where(goal.c.goal_id == goal_id)
-            .values(**kwargs)
+            .values(**clean_values)
         )
 
 
