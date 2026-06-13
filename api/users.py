@@ -1,18 +1,24 @@
-import db.queries.users as q
+import services.user_service as service
+
+
+def get_users():
+    return service.get_users()
 
 
 def get_user(user_id):
-    return q.get_user(user_id)
+    return service.get_user(user_id)
 
 
-def get_all_users():
-    return q.get_all_users()
+def create_user(name, currency_code):
+    try:
+        return service.create_user(name, currency_code)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
-def create_user(name):
-    user_id = q.create_user(name)
-    return {"user_id": user_id}
-
-
-def update_user(user_id, name):
-    q.update_user(user_id, name=name)
+def update_user(user_id, name=None, currency_code=None):
+    try:
+        service.update_user(user_id, name=name, currency_code=currency_code)
+        return {"ok": True}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}

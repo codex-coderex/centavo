@@ -1,51 +1,63 @@
-import db.queries.budgets as q
+import services.budget_service as service
 
 
 def get_budgets(user_id):
-    return q.get_budgets(user_id)
+    return service.get_budgets(user_id)
 
 
 def get_budget(budget_id):
-    return q.get_budget(budget_id)
+    return service.get_budget(budget_id)
 
 
 def create_budget(user_id, name, period, start_date, end_date=None):
-    budget_id = q.create_budget(user_id, name, period, start_date, end_date)
-    return {"budget_id": budget_id}
+    try:
+        return service.create_budget(user_id, name, period, start_date, end_date=end_date)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
 def update_budget(budget_id, name=None, period=None, start_date=None, end_date=None):
-    kwargs = {k: v for k, v in {
-        "name": name,
-        "period": period,
-        "start_date": start_date,
-        "end_date": end_date,
-    }.items() if v is not None}
-    q.update_budget(budget_id, **kwargs)
+    try:
+        service.update_budget(budget_id, name=name, period=period,
+                              start_date=start_date, end_date=end_date)
+        return {"ok": True}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
 def delete_budget(budget_id):
-    q.delete_budget(budget_id)
+    try:
+        service.delete_budget(budget_id)
+        return {"ok": True}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
 def get_budget_items(budget_id):
-    return q.get_budget_items(budget_id)
+    return service.get_budget_items(budget_id)
 
 
 def create_budget_item(budget_id, category_id, planned_amount, rollover_enabled=False):
-    budget_item_id = q.create_budget_item(
-        budget_id, category_id, planned_amount, rollover_enabled
-    )
-    return {"budget_item_id": budget_item_id}
+    try:
+        return service.create_budget_item(budget_id, category_id, planned_amount,
+                                          rollover_enabled=rollover_enabled)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
-def update_budget_item(budget_item_id, planned_amount=None, rollover_enabled=None):
-    kwargs = {k: v for k, v in {
-        "planned_amount": planned_amount,
-        "rollover_enabled": rollover_enabled,
-    }.items() if v is not None}
-    q.update_budget_item(budget_item_id, **kwargs)
+def update_budget_item(budget_item_id, planned_amount=None, category_id=None,
+                       rollover_enabled=None):
+    try:
+        service.update_budget_item(budget_item_id, planned_amount=planned_amount,
+                                   category_id=category_id, rollover_enabled=rollover_enabled)
+        return {"ok": True}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
 
 
 def delete_budget_item(budget_item_id):
-    q.delete_budget_item(budget_item_id)
+    try:
+        service.delete_budget_item(budget_item_id)
+        return {"ok": True}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}

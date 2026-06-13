@@ -1,20 +1,35 @@
-from db.queries.currency import create_currency
-from db.queries.categories import create_category_group, create_category
-from db.queries.users import create_user, get_all_users
-from db.queries.accounts import create_account
-from db.queries.transactions import create_transaction
-from db.connection import get_conn
-from db.tables import currency
 from sqlalchemy import select
 
-def is_fresh_db():
+from db.connection import get_conn
+from db.tables import currency, user
+from db.queries.currency import seed_currency
+from db.queries.categories import create_category_group, create_category
+from db.queries.users import create_user
+from db.queries.accounts import create_account
+from db.queries.transactions import create_transaction
+
+
+def has_seed_data() -> bool:
+    """
+    Returns True if the required app seed data already exists.
+
+    We check currency because currency is seeded before users/categories.
+    """
     with get_conn() as conn:
-        result = conn.execute(select(currency))
-        return result.first() is None
+        result = conn.execute(select(currency.c.code).limit(1))
+        return result.first() is not None
 
-def seed_required(user_id: int):
 
-    # currencies
+def has_user() -> bool:
+    """
+    Returns True if at least one user exists.
+    """
+    with get_conn() as conn:
+        result = conn.execute(select(user.c.user_id).limit(1))
+        return result.first() is not None
+
+
+def seed_currencies():
     currencies = [
         ("PHP", "Philippine Peso", "₱", 2),
         ("USD", "US Dollar", "$", 2),
@@ -22,10 +37,12 @@ def seed_required(user_id: int):
         ("GBP", "British Pound", "£", 2),
         ("JPY", "Japanese Yen", "¥", 0),
     ]
-    for code, name, symbol, decimal_places in currencies:
-        create_currency(code, name, symbol, decimal_places)
 
-    # system category groups + categories
+    for code, name, symbol, decimal_places in currencies:
+        seed_currency(code, name, symbol, decimal_places)
+
+
+def seed_categories(user_id: int) -> dict[str, int]:
     groups = [
         ("Income", "income", [
             ("Salary", "#4CAF50"),
@@ -92,53 +109,63 @@ def seed_required(user_id: int):
 
     for group_name, group_type, categories in groups:
         group_id = create_category_group(user_id, group_name, group_type)
-        for cat_name, color in categories:
-            cat_id = create_category(group_id, cat_name, color, is_system=True)
-            category_ids[cat_name] = cat_id
+
+        for category_name, color in categories:
+            category_id = create_category(
+                group_id=group_id,
+                name=category_name,
+                color=color,
+                is_system=True,
+            )
+            category_ids[category_name] = category_id
 
     return category_ids
 
-def seed_sample_data(user_id: int, account_id: int, category_ids: dict):
+
+def seed_sample_data(user_id: int, category_ids: dict[str, int]):
+    account_id = create_account(
+        user_id=user_id,
+        name="Main Account",
+        type="checking",
+    )
+
     transactions = [
-        (account_id, 25000,  "2025-01-01", "Company Inc",    "Salary"),
-        (account_id, -1500,  "2025-01-03", "SM Supermarket", "Groceries"),
-        (account_id, -500,   "2025-01-05", "Jollibee",       "Dining Out"),
-        (account_id, -3000,  "2025-01-07", "Meralco",        "Electricity"),  
-        (account_id, -800,   "2025-01-10", "Grab",           "Fare"),
-        (account_id, 5000,   "2025-01-15", "Client A",       "Freelance"),
-        (account_id, -2000,  "2025-01-18", "Mercury Drug",   "Pharmacy"),
-        (account_id, -1200,  "2025-01-20", "Puregold",       "Groceries"),
+        (account_id, 25000, "2025-01-01", "Company Inc", "Salary"),
+        (account_id, -1500, "2025-01-03", "SM Supermarket", "Groceries"),
+        (account_id, -500, "2025-01-05", "Jollibee", "Dining Out"),
+        (account_id, -3000, "2025-01-07", "Meralco", "Electricity"),
+        (account_id, -800, "2025-01-10", "Grab", "Fare"),
+        (account_id, 5000, "2025-01-15", "Client A", "Freelance"),
+        (account_id, -2000, "2025-01-18", "Mercury Drug", "Pharmacy"),
+        (account_id, -1200, "2025-01-20", "Puregold", "Groceries"),
     ]
 
-    for acct_id, amount, txn_date, merchant, cat_name in transactions:
+    for account_id, amount_minor, txn_date, merchant, category_name in transactions:
         create_transaction(
-            account_id=acct_id,
-            amount=amount,
+            account_id=account_id,
+            amount_minor=amount_minor,
             txn_date=txn_date,
             merchant=merchant,
-            category_id=category_ids[cat_name]
+            category_id=category_ids[category_name],
         )
+
 
 def run_seed(sample_data: bool = False):
     """
-    Entry point called from main.py on first launch.
-    sample_data=True only if user opted in.
+    Seeds required app data.
+
+    This should be safe to call on startup.
     """
-    if not is_fresh_db():
-        return  # already seeded, do nothing
+    if has_seed_data():
+        return
 
-    # create default user
-    user_id = create_user("Me")
+    seed_currencies()
 
-    # always seed required data
-    category_ids = seed_required(user_id)
+    if has_user():
+        return
 
-    # optionally seed sample data
+    user_id = create_user("Me", "PHP")
+    category_ids = seed_categories(user_id)
+
     if sample_data:
-        account_id = create_account(
-            user_id=user_id,
-            name="Main Account",
-            type="checking",
-            currency_code="PHP"
-        )
-        seed_sample_data(user_id, account_id, category_ids)
+        seed_sample_data(user_id, category_ids)
