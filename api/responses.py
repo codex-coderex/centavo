@@ -1,17 +1,45 @@
-"""
-Shared response helpers for api/ functions.
+from datetime import date, datetime
+from decimal import Decimal
+from enum import Enum
+import traceback
 
-Every api/ function returns one of these shapes so the frontend
-always gets a consistent, JSON-safe object back from pywebview:
 
-    ok(data)   -> {"ok": True, "data": data}
-    fail(e)    -> {"ok": False, "error": str(e)}
-"""
+def serialize(value):
+    if isinstance(value, datetime):
+        return value.isoformat()
+
+    if isinstance(value, date):
+        return value.isoformat()
+
+    if isinstance(value, Decimal):
+        return str(value)
+
+    if isinstance(value, Enum):
+        return value.value
+
+    if isinstance(value, dict):
+        return {key: serialize(inner_value) for key, inner_value in value.items()}
+
+    if isinstance(value, list):
+        return [serialize(item) for item in value]
+
+    if isinstance(value, tuple):
+        return [serialize(item) for item in value]
+
+    return value
 
 
 def ok(data=None):
-    return {"ok": True, "data": data}
+    return {"ok": True, "data": serialize(data)}
 
 
 def fail(error):
     return {"ok": False, "error": str(error)}
+
+
+def safe(fn):
+    try:
+        return ok(fn())
+    except Exception as e:
+        traceback.print_exc()
+        return fail(e)
