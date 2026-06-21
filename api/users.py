@@ -1,30 +1,18 @@
 import services.user_service as service
-from api.responses import ok, fail
+from api.responses import safe
 
 
 def get_users():
-    try:
-        return ok(service.get_users())
-    except ValueError as e:
-        return fail(e)
+    return safe(lambda: service.get_users())
 
 
 def get_user(user_id):
-    try:
-        return ok(service.get_user(user_id))
-    except ValueError as e:
-        return fail(e)
+    return safe(lambda: service.get_user(user_id))
 
 
 def create_user(name):
-    try:
-        return ok(service.create_user(name))
-    except ValueError as e:
-        return fail(e)
+    return safe(lambda: service.create_user(name))
 
 
 def update_user(user_id, name=None):
-    try:
-        return ok(service.update_user(user_id, name=name))
-    except ValueError as e:
-        return fail(e)
+    return safe(lambda: service.update_user(user_id, name=name))
