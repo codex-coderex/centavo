@@ -1,4 +1,4 @@
-from sqlalchemy import select, insert, update, delete
+from sqlalchemy import select, insert, update, delete, func
 from db.tables import (
     category,
     category_group,
@@ -16,6 +16,39 @@ def get_category_groups(user_id: int):
             .where(category_group.c.user_id == user_id)
             .where(category_group.c.is_active.is_(True))
             .order_by(category_group.c.type, category_group.c.name)
+        )
+        return [dict(row._mapping) for row in result]
+
+
+def get_category_group(group_id: int):
+    with get_conn() as conn:
+        result = conn.execute(
+            select(category_group).where(category_group.c.group_id == group_id)
+        )
+        row = result.first()
+        return dict(row._mapping) if row else None
+
+
+def get_categories_by_group(group_id: int, active_only: bool = False):
+    with get_conn() as conn:
+        stmt = select(category).where(category.c.group_id == group_id)
+
+        if active_only:
+            stmt = stmt.where(category.c.is_active.is_(True))
+
+        result = conn.execute(stmt.order_by(category.c.name))
+        return [dict(row._mapping) for row in result]
+
+
+def get_all_categories(user_id: int):
+    with get_conn() as conn:
+        result = conn.execute(
+            select(category)
+            .join(category_group, category.c.group_id == category_group.c.group_id)
+            .where(category_group.c.user_id == user_id)
+            .where(category_group.c.is_active.is_(True))
+            .where(category.c.is_active.is_(True))
+            .order_by(category_group.c.type, category.c.name)
         )
         return [dict(row._mapping) for row in result]
 
@@ -38,39 +71,6 @@ def get_category(category_id: int):
         )
         row = result.first()
         return dict(row._mapping) if row else None
-
-
-def get_category_group(group_id: int):
-    with get_conn() as conn:
-        result = conn.execute(
-            select(category_group).where(category_group.c.group_id == group_id)
-        )
-        row = result.first()
-        return dict(row._mapping) if row else None
-
-
-def get_all_categories(user_id: int):
-    with get_conn() as conn:
-        result = conn.execute(
-            select(category)
-            .join(category_group, category.c.group_id == category_group.c.group_id)
-            .where(category_group.c.user_id == user_id)
-            .where(category_group.c.is_active.is_(True))
-            .where(category.c.is_active.is_(True))
-            .order_by(category_group.c.type, category.c.name)
-        )
-        return [dict(row._mapping) for row in result]
-
-
-def get_categories_by_group(group_id: int, active_only: bool = False):
-    with get_conn() as conn:
-        stmt = select(category).where(category.c.group_id == group_id)
-
-        if active_only:
-            stmt = stmt.where(category.c.is_active.is_(True))
-
-        result = conn.execute(stmt.order_by(category.c.name))
-        return [dict(row._mapping) for row in result]
 
 
 def create_category_group(
@@ -194,6 +194,33 @@ def category_has_references(category_id: int) -> bool:
         ).first()
 
         return has_recurring is not None
+
+
+def get_category_reference_counts(category_id: int):
+    with get_conn() as conn:
+        transaction_count = conn.execute(
+            select(func.count())
+            .select_from(transaction)
+            .where(transaction.c.category_id == category_id)
+        ).scalar_one()
+
+        budget_item_count = conn.execute(
+            select(func.count())
+            .select_from(budget_item)
+            .where(budget_item.c.category_id == category_id)
+        ).scalar_one()
+
+        recurring_count = conn.execute(
+            select(func.count())
+            .select_from(recurring)
+            .where(recurring.c.category_id == category_id)
+        ).scalar_one()
+
+    return {
+        "transactions": transaction_count,
+        "budget_items": budget_item_count,
+        "recurring": recurring_count,
+    }
 
 
 def group_has_referenced_categories(group_id: int) -> bool:

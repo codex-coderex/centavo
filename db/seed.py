@@ -1,120 +1,176 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 
 from db.connection import get_conn
-from db.tables import currency, user
-from db.queries.currency import seed_currency
-from db.queries.categories import create_category_group, create_category
-from db.queries.users import create_user
-from db.queries.accounts import create_account
-from db.queries.transactions import create_transaction
+from db.tables import (
+    user,
+    account,
+    category_group,
+    category,
+    transaction,
+)
 
 
-def has_seed_data() -> bool:
-    """
-    Returns True if the required app seed data already exists.
-
-    We check currency because currency is seeded before users/categories.
-    """
-    with get_conn() as conn:
-        result = conn.execute(select(currency.c.code).limit(1))
-        return result.first() is not None
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def has_user() -> bool:
-    """
-    Returns True if at least one user exists.
-    """
-    with get_conn() as conn:
-        result = conn.execute(select(user.c.user_id).limit(1))
-        return result.first() is not None
+def get_or_create_user(conn, name: str = "Me") -> int:
+    existing = conn.execute(
+        select(user.c.user_id).where(user.c.name == name)
+    ).scalar_one_or_none()
+
+    if existing is not None:
+        return existing
+
+    result = conn.execute(
+        user.insert().values(
+            name=name,
+            created_at=utc_now(),
+        )
+    )
+
+    return int(result.inserted_primary_key[0])
 
 
-def seed_currencies():
-    currencies = [
-        ("PHP", "Philippine Peso", "₱", 2),
-        ("USD", "US Dollar", "$", 2),
-        ("EUR", "Euro", "€", 2),
-        ("GBP", "British Pound", "£", 2),
-        ("JPY", "Japanese Yen", "¥", 0),
-    ]
+def get_or_create_category_group(
+    conn,
+    *,
+    user_id: int,
+    name: str,
+    type_: str,
+    is_system: bool = True,
+) -> int:
+    existing = conn.execute(
+        select(category_group.c.group_id).where(
+            category_group.c.user_id == user_id,
+            category_group.c.type == type_,
+            category_group.c.name == name,
+        )
+    ).scalar_one_or_none()
 
-    for code, name, symbol, decimal_places in currencies:
-        seed_currency(code, name, symbol, decimal_places)
+    if existing is not None:
+        return existing
+
+    result = conn.execute(
+        category_group.insert().values(
+            user_id=user_id,
+            name=name,
+            type=type_,
+            is_system=is_system,
+            is_active=True,
+        )
+    )
+
+    return int(result.inserted_primary_key[0])
 
 
-def seed_categories(user_id: int) -> dict[str, int]:
-    groups = [
+def get_or_create_category(
+    conn,
+    *,
+    group_id: int,
+    name: str,
+    is_system: bool = True,
+) -> int:
+    existing = conn.execute(
+        select(category.c.category_id).where(
+            category.c.group_id == group_id,
+            category.c.name == name,
+        )
+    ).scalar_one_or_none()
+
+    if existing is not None:
+        return existing
+
+    result = conn.execute(
+        category.insert().values(
+            group_id=group_id,
+            name=name,
+            is_system=is_system,
+            is_active=True,
+        )
+    )
+
+    return int(result.inserted_primary_key[0])
+
+
+def seed_categories(conn, user_id: int) -> dict[str, int]:
+    groups: list[tuple[str, str, list[str]]] = [
         ("Income", "income", [
-            ("Salary", "#4CAF50"),
-            ("Freelance", "#8BC34A"),
-            ("Business", "#CDDC39"),
-            ("Interest", "#66BB6A"),
-            ("Gifts Received", "#A5D6A7"),
+            "Salary",
+            "Freelance",
+            "Business",
+            "Interest",
+            "Gifts Received",
         ]),
         ("Housing", "expense", [
-            ("Rent", "#EF5350"),
-            ("Electricity", "#E53935"),
-            ("Water", "#1E88E5"),
-            ("Internet", "#AB47BC"),
-            ("Repairs", "#EC407A"),
+            "Rent",
+            "Electricity",
+            "Water",
+            "Internet",
+            "Repairs",
         ]),
         ("Food", "expense", [
-            ("Groceries", "#FF9800"),
-            ("Dining Out", "#FF5722"),
-            ("Coffee", "#795548"),
-            ("Delivery", "#FFA726"),
+            "Groceries",
+            "Dining Out",
+            "Coffee",
+            "Delivery",
         ]),
         ("Transport", "expense", [
-            ("Fuel", "#607D8B"),
-            ("Fare", "#78909C"),
-            ("Parking", "#90A4AE"),
-            ("Vehicle Maintenance", "#546E7A"),
-        ]),
-        ("Transfer", "expense", [
-            ("Transfer", "#607D8B"),
+            "Fuel",
+            "Fare",
+            "Parking",
+            "Vehicle Maintenance",
         ]),
         ("Health", "expense", [
-            ("Medical", "#00ACC1"),
-            ("Pharmacy", "#00897B"),
-            ("Dental", "#26A69A"),
-            ("Fitness", "#80CBC4"),
+            "Medical",
+            "Pharmacy",
+            "Dental",
+            "Fitness",
         ]),
         ("Personal", "expense", [
-            ("Clothing", "#F06292"),
-            ("Grooming", "#F48FB1"),
-            ("Subscriptions", "#CE93D8"),
-            ("Education", "#9575CD"),
+            "Clothing",
+            "Grooming",
+            "Subscriptions",
+            "Education",
         ]),
         ("Family", "expense", [
-            ("Allowance", "#FFB74D"),
-            ("Gifts Given", "#FFCC02"),
-            ("Dependents", "#FFE082"),
+            "Allowance",
+            "Gifts Given",
+            "Dependents",
         ]),
         ("Savings & Investment", "expense", [
-            ("Emergency Fund", "#3F51B5"),
-            ("Investment", "#1565C0"),
-            ("SSS/Pag-IBIG/PhilHealth", "#0288D1"),
+            "Emergency Fund",
+            "Investment",
+            "SSS/Pag-IBIG/PhilHealth",
         ]),
         ("Miscellaneous", "expense", [
-            ("Fees & Charges", "#BDBDBD"),
-            ("Donations", "#9E9E9E"),
-            ("Others", "#757575"),
+            "Fees & Charges",
+            "Donations",
+            "Others",
         ]),
         ("Uncategorized", "expense", [
-            ("Uncategorized", "#9E9E9E"),
+            "Uncategorized",
         ]),
     ]
 
-    category_ids = {}
+    category_ids: dict[str, int] = {}
 
-    for group_name, group_type, categories in groups:
-        group_id = create_category_group(user_id, group_name, group_type)
+    for group_name, group_type, category_names in groups:
+        group_id = get_or_create_category_group(
+            conn,
+            user_id=user_id,
+            name=group_name,
+            type_=group_type,
+            is_system=True,
+        )
 
-        for category_name, color in categories:
-            category_id = create_category(
+        for category_name in category_names:
+            category_id = get_or_create_category(
+                conn,
                 group_id=group_id,
                 name=category_name,
-                color=color,
                 is_system=True,
             )
             category_ids[category_name] = category_id
@@ -122,50 +178,92 @@ def seed_categories(user_id: int) -> dict[str, int]:
     return category_ids
 
 
-def seed_sample_data(user_id: int, category_ids: dict[str, int]):
-    account_id = create_account(
-        user_id=user_id,
-        name="Main Account",
-        type="checking",
+def get_or_create_account(
+    conn,
+    *,
+    user_id: int,
+    name: str,
+    type_: str = "checking",
+    opening_balance_minor: int = 0,
+) -> int:
+    existing = conn.execute(
+        select(account.c.account_id).where(
+            account.c.user_id == user_id,
+            account.c.name == name,
+        )
+    ).scalar_one_or_none()
+
+    if existing is not None:
+        return existing
+
+    result = conn.execute(
+        account.insert().values(
+            user_id=user_id,
+            name=name,
+            type=type_,
+            opening_balance_minor=opening_balance_minor,
+            created_at=utc_now(),
+            status="active",
+        )
     )
 
-    transactions = [
-        (account_id, 25000, "2025-01-01", "Company Inc", "Salary"),
-        (account_id, -1500, "2025-01-03", "SM Supermarket", "Groceries"),
-        (account_id, -500, "2025-01-05", "Jollibee", "Dining Out"),
-        (account_id, -3000, "2025-01-07", "Meralco", "Electricity"),
-        (account_id, -800, "2025-01-10", "Grab", "Fare"),
-        (account_id, 5000, "2025-01-15", "Client A", "Freelance"),
-        (account_id, -2000, "2025-01-18", "Mercury Drug", "Pharmacy"),
-        (account_id, -1200, "2025-01-20", "Puregold", "Groceries"),
+    return int(result.inserted_primary_key[0])
+
+
+def seed_sample_data(conn, user_id: int, category_ids: dict[str, int]) -> None:
+    account_id = get_or_create_account(
+        conn,
+        user_id=user_id,
+        name="Main Account",
+        type_="checking",
+        opening_balance_minor=0,
+    )
+
+    sample_transactions = [
+        (2_500_000, "2025-01-01", "Company Inc", "Salary"),
+        (-150_000, "2025-01-03", "SM Supermarket", "Groceries"),
+        (-50_000, "2025-01-05", "Jollibee", "Dining Out"),
+        (-300_000, "2025-01-07", "Meralco", "Electricity"),
+        (-80_000, "2025-01-10", "Grab", "Fare"),
+        (500_000, "2025-01-15", "Client A", "Freelance"),
+        (-200_000, "2025-01-18", "Mercury Drug", "Pharmacy"),
+        (-120_000, "2025-01-20", "Puregold", "Groceries"),
     ]
 
-    for account_id, amount_minor, txn_date, merchant, category_name in transactions:
-        create_transaction(
-            account_id=account_id,
-            amount_minor=amount_minor,
-            txn_date=txn_date,
-            merchant=merchant,
-            category_id=category_ids[category_name],
+    for amount_minor, txn_date, payee, category_name in sample_transactions:
+        txn_dt = datetime.fromisoformat(txn_date)
+
+        exists = conn.execute(
+            select(transaction.c.transaction_id).where(
+                transaction.c.account_id == account_id,
+                transaction.c.amount_minor == amount_minor,
+                transaction.c.transaction_date == txn_dt,
+                transaction.c.payee == payee,
+            )
+        ).scalar_one_or_none()
+
+        if exists is not None:
+            continue
+
+        conn.execute(
+            transaction.insert().values(
+                account_id=account_id,
+                category_id=category_ids[category_name],
+                recurring_rule_id=None,
+                payee=payee,
+                amount_minor=amount_minor,
+                transaction_date=txn_dt,
+                notes=None,
+                created_at=utc_now(),
+                transfer_id=None,
+            )
         )
 
 
-def run_seed(sample_data: bool = False):
-    """
-    Seeds required app data.
+def run_seed(sample_data: bool = False) -> None:
+    with get_conn() as conn:
+        user_id = get_or_create_user(conn, "Me")
+        category_ids = seed_categories(conn, user_id)
 
-    This should be safe to call on startup.
-    """
-    if has_seed_data():
-        return
-
-    seed_currencies()
-
-    if has_user():
-        return
-
-    user_id = create_user("Me", "PHP")
-    category_ids = seed_categories(user_id)
-
-    if sample_data:
-        seed_sample_data(user_id, category_ids)
+        if sample_data:
+            seed_sample_data(conn, user_id, category_ids)

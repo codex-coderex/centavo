@@ -2,24 +2,14 @@ from sqlalchemy import (
     MetaData, Table, Column,
     Integer, String, Boolean, DateTime, Text,
     ForeignKey, CheckConstraint, Index,
-    UniqueConstraint, text
+    UniqueConstraint, text,
 )
 
 metadata = MetaData()
 
 
-currency = Table("currency", metadata,
-    Column("code", String, primary_key=True),
-    Column("name", String, nullable=False),
-    Column("symbol", String, nullable=False),
-    Column("decimal_places", Integer, nullable=False, server_default=text("2")),
-    CheckConstraint("decimal_places >= 0", name="ck_currency_decimal_places"),
-)
-
-
 user = Table("user", metadata,
     Column("user_id", Integer, primary_key=True, autoincrement=True),
-    Column("currency_code", String, ForeignKey("currency.code"), nullable=False),
     Column("name", String, nullable=False),
     Column("created_at", DateTime, nullable=False),
 )
@@ -30,8 +20,14 @@ account = Table("account", metadata,
     Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
     Column("name", String, nullable=False),
     Column("type", String, nullable=False),
+    Column("opening_balance_minor", Integer, nullable=False, server_default=text("0")),
+    Column("created_at", DateTime, nullable=False),
     Column("status", String, nullable=False, server_default=text("'active'")),
     CheckConstraint("status IN ('active','archived')", name="ck_account_status"),
+    CheckConstraint(
+        "type IN ('checking','savings','cash','credit_card','line_of_credit','loan','mortgage','investment','other_asset','other_liability')",
+        name="ck_account_type",
+    ),
     UniqueConstraint("user_id", "name", name="uq_account_user_name"),
 )
 
@@ -52,34 +48,9 @@ category = Table("category", metadata,
     Column("category_id", Integer, primary_key=True, autoincrement=True),
     Column("group_id", Integer, ForeignKey("category_group.group_id"), nullable=False),
     Column("name", String, nullable=False),
-    Column("color", String),
     Column("is_system", Boolean, nullable=False, server_default=text("0")),
     Column("is_active", Boolean, nullable=False, server_default=text("1")),
     UniqueConstraint("group_id", "name", name="uq_category_group_name"),
-)
-
-
-recurring = Table("recurring", metadata,
-    Column("recurring_id", Integer, primary_key=True, autoincrement=True),
-    Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
-    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=False),
-    Column("merchant", String),
-    Column("amount_minor", Integer, nullable=False),
-    Column("interval", Integer, nullable=False),
-    Column("frequency_unit", String, nullable=False),
-    Column("next_due", DateTime, nullable=False),
-    Column("end_date", DateTime),
-    Column("status", String, nullable=False, server_default=text("'active'")),
-    CheckConstraint("amount_minor <> 0", name="ck_recurring_amount_minor"),
-    CheckConstraint("interval > 0", name="ck_recurring_interval"),
-    CheckConstraint(
-        "frequency_unit IN ('day','week','month','year')",
-        name="ck_recurring_frequency_unit",
-    ),
-    CheckConstraint(
-        "status IN ('active','paused','inactive')",
-        name="ck_recurring_status",
-    ),
 )
 
 
@@ -87,13 +58,15 @@ budget = Table("budget", metadata,
     Column("budget_id", Integer, primary_key=True, autoincrement=True),
     Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
     Column("name", String, nullable=False),
-    Column("period", String, nullable=False),
+    Column("period_type", String, nullable=False),
     Column("start_date", DateTime, nullable=False),
     Column("end_date", DateTime),
+    Column("created_at", DateTime, nullable=False),
     CheckConstraint(
-        "period IN ('weekly','monthly','quarterly','yearly','custom')",
-        name="ck_budget_period",
+        "period_type IN ('weekly','monthly','quarterly','yearly','custom')",
+        name="ck_budget_period_type",
     ),
+    UniqueConstraint("user_id", "name", "start_date", name="uq_budget_user_name_start_date"),
 )
 
 
@@ -108,10 +81,34 @@ budget_item = Table("budget_item", metadata,
 )
 
 
+recurring_rule = Table("recurring_rule", metadata,
+    Column("recurring_rule_id", Integer, primary_key=True, autoincrement=True),
+    Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
+    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=False),
+    Column("name", String, nullable=False),
+    Column("expected_amount_minor", Integer, nullable=False),
+    Column("interval", Integer, nullable=False),
+    Column("frequency_unit", String, nullable=False),
+    Column("start_date", DateTime, nullable=False),
+    Column("next_due_date", DateTime, nullable=False),
+    Column("end_date", DateTime),
+    Column("status", String, nullable=False, server_default=text("'active'")),
+    CheckConstraint("expected_amount_minor <> 0", name="ck_recurring_rule_expected_amount_minor"),
+    CheckConstraint("interval > 0", name="ck_recurring_rule_interval"),
+    CheckConstraint(
+        "frequency_unit IN ('day','week','month','year')",
+        name="ck_recurring_rule_frequency_unit",
+    ),
+    CheckConstraint(
+        "status IN ('active','paused','inactive')",
+        name="ck_recurring_rule_status",
+    ),
+)
+
+
 goal = Table("goal", metadata,
     Column("goal_id", Integer, primary_key=True, autoincrement=True),
     Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
-    Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
     Column("name", String, nullable=False),
     Column("target_amount_minor", Integer, nullable=False),
     Column("target_date", DateTime),
@@ -121,11 +118,31 @@ goal = Table("goal", metadata,
 )
 
 
+goal_account = Table("goal_account", metadata,
+    Column(
+        "goal_id",
+        Integer,
+        ForeignKey("goal.goal_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "account_id",
+        Integer,
+        ForeignKey("account.account_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("allocated_amount_minor", Integer, nullable=False, server_default=text("0")),
+    CheckConstraint(
+        "allocated_amount_minor >= 0",
+        name="ck_goal_account_allocated_amount_minor",
+    ),
+)
+
+
 tag = Table("tag", metadata,
     Column("tag_id", Integer, primary_key=True, autoincrement=True),
     Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
     Column("name", String, nullable=False),
-    Column("color", String),
     UniqueConstraint("user_id", "name", name="uq_tag_user_name"),
 )
 
@@ -133,22 +150,15 @@ tag = Table("tag", metadata,
 transaction = Table("transaction", metadata,
     Column("transaction_id", Integer, primary_key=True, autoincrement=True),
     Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
-    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=False),
-    Column("recurring_id", Integer, ForeignKey("recurring.recurring_id")),
-    Column("transfer_pair_id", Integer, ForeignKey("transaction.transaction_id")),
-    Column("goal_id", Integer, ForeignKey("goal.goal_id")),
-    Column("merchant", String),
+    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=True),
+    Column("recurring_rule_id", Integer, ForeignKey("recurring_rule.recurring_rule_id")),
+    Column("payee", String),
     Column("amount_minor", Integer, nullable=False),
-    Column("txn_date", DateTime, nullable=False),
-    Column("status", String, nullable=False, server_default=text("'cleared'")),
-    Column("needs_review", Boolean, nullable=False, server_default=text("0")),
-    Column("note", Text),
-    Column("updated_at", DateTime),
+    Column("transaction_date", DateTime, nullable=False),
+    Column("notes", Text),
+    Column("created_at", DateTime, nullable=False),
+    Column("transfer_id", Integer),
     CheckConstraint("amount_minor <> 0", name="ck_transaction_amount_minor"),
-    CheckConstraint(
-        "status IN ('pending','cleared','void')",
-        name="ck_transaction_status",
-    ),
 )
 
 
@@ -168,37 +178,41 @@ transaction_tag = Table("transaction_tag", metadata,
 )
 
 
-Index("ix_user_currency_code", user.c.currency_code)
-
 Index("ix_account_user_id", account.c.user_id)
+Index("ix_account_status", account.c.status)
 
 Index("ix_category_group_user_id", category_group.c.user_id)
+Index("ix_category_group_type", category_group.c.type)
+Index("ix_category_group_is_active", category_group.c.is_active)
 
 Index("ix_category_group_id", category.c.group_id)
 Index("ix_category_is_active", category.c.is_active)
 
-Index("ix_recurring_account_id", recurring.c.account_id)
-Index("ix_recurring_category_id", recurring.c.category_id)
-Index("ix_recurring_next_due", recurring.c.next_due)
-Index("ix_recurring_status", recurring.c.status)
-
 Index("ix_budget_user_id", budget.c.user_id)
 Index("ix_budget_start_date", budget.c.start_date)
+Index("ix_budget_period_type", budget.c.period_type)
 
 Index("ix_budget_item_budget_id", budget_item.c.budget_id)
 Index("ix_budget_item_category_id", budget_item.c.category_id)
 
+Index("ix_recurring_rule_account_id", recurring_rule.c.account_id)
+Index("ix_recurring_rule_category_id", recurring_rule.c.category_id)
+Index("ix_recurring_rule_next_due_date", recurring_rule.c.next_due_date)
+Index("ix_recurring_rule_status", recurring_rule.c.status)
+
 Index("ix_goal_user_id", goal.c.user_id)
-Index("ix_goal_account_id", goal.c.account_id)
+Index("ix_goal_status", goal.c.status)
+
+Index("ix_goal_account_goal_id", goal_account.c.goal_id)
+Index("ix_goal_account_account_id", goal_account.c.account_id)
 
 Index("ix_tag_user_id", tag.c.user_id)
 
 Index("ix_transaction_account_id", transaction.c.account_id)
 Index("ix_transaction_category_id", transaction.c.category_id)
-Index("ix_transaction_recurring_id", transaction.c.recurring_id)
-Index("ix_transaction_goal_id", transaction.c.goal_id)
-Index("ix_transaction_txn_date", transaction.c.txn_date)
-Index("ix_transaction_status", transaction.c.status)
+Index("ix_transaction_recurring_rule_id", transaction.c.recurring_rule_id)
+Index("ix_transaction_transfer_id", transaction.c.transfer_id)
+Index("ix_transaction_transaction_date", transaction.c.transaction_date)
 
 Index("ix_transaction_tag_transaction_id", transaction_tag.c.transaction_id)
 Index("ix_transaction_tag_tag_id", transaction_tag.c.tag_id)

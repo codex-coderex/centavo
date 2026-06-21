@@ -1,5 +1,5 @@
-from sqlalchemy import select, insert, update
-from db.tables import goal
+from sqlalchemy import select, insert, update, delete
+from db.tables import goal, goal_account
 from db.connection import get_conn
 
 
@@ -15,10 +15,10 @@ def get_goals(user_id: int):
 
 def get_goal(goal_id: int):
     with get_conn() as conn:
-        result = conn.execute(
+        row = conn.execute(
             select(goal).where(goal.c.goal_id == goal_id)
-        )
-        row = result.first()
+        ).first()
+
         return dict(row._mapping) if row else None
 
 
@@ -26,8 +26,7 @@ def create_goal(
     user_id: int,
     name: str,
     target_amount_minor: int,
-    account_id: int,
-    target_date: str | None = None,
+    target_date=None,
 ):
     with get_conn() as conn:
         result = conn.execute(
@@ -36,7 +35,7 @@ def create_goal(
                 name=name,
                 target_amount_minor=target_amount_minor,
                 target_date=target_date,
-                account_id=account_id,
+                status="active",
             )
         )
         return result.inserted_primary_key[0]
@@ -46,14 +45,13 @@ def update_goal(goal_id: int, **kwargs):
     allowed = {
         "name",
         "target_amount_minor",
-        "account_id",
         "target_date",
         "status",
     }
     clean_values = {k: v for k, v in kwargs.items() if k in allowed}
 
     if not clean_values:
-        return
+        return None
 
     with get_conn() as conn:
         conn.execute(
@@ -64,9 +62,52 @@ def update_goal(goal_id: int, **kwargs):
 
 
 def complete_goal(goal_id: int):
+    update_goal(goal_id, status="completed")
+
+
+def get_goal_accounts(goal_id: int):
+    with get_conn() as conn:
+        result = conn.execute(
+            select(goal_account)
+            .where(goal_account.c.goal_id == goal_id)
+        )
+        return [dict(row._mapping) for row in result]
+
+
+def add_account_to_goal(
+    goal_id: int,
+    account_id: int,
+    allocated_amount_minor: int = 0,
+):
+    with get_conn() as conn:
+        result = conn.execute(
+            insert(goal_account).values(
+                goal_id=goal_id,
+                account_id=account_id,
+                allocated_amount_minor=allocated_amount_minor,
+            )
+        )
+        return result.inserted_primary_key
+
+
+def update_goal_account_allocation(
+    goal_id: int,
+    account_id: int,
+    allocated_amount_minor: int,
+):
     with get_conn() as conn:
         conn.execute(
-            update(goal)
-            .where(goal.c.goal_id == goal_id)
-            .values(status="completed")
+            update(goal_account)
+            .where(goal_account.c.goal_id == goal_id)
+            .where(goal_account.c.account_id == account_id)
+            .values(allocated_amount_minor=allocated_amount_minor)
+        )
+
+
+def remove_account_from_goal(goal_id: int, account_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            delete(goal_account)
+            .where(goal_account.c.goal_id == goal_id)
+            .where(goal_account.c.account_id == account_id)
         )

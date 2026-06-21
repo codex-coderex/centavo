@@ -37,20 +37,30 @@ class FrequencyUnit(StrEnum):
     YEAR = "year"
 
 
-class TransactionStatus(StrEnum):
-    PENDING = "pending"
-    CLEARED = "cleared"
-    VOID = "void"
+class AccountType(StrEnum):
+    CHECKING = "checking"
+    SAVINGS = "savings"
+    CASH = "cash"
+    CREDIT_CARD = "credit_card"
+    LINE_OF_CREDIT = "line_of_credit"
+    LOAN = "loan"
+    MORTGAGE = "mortgage"
+    INVESTMENT = "investment"
+    OTHER_ASSET = "other_asset"
+    OTHER_LIABILITY = "other_liability"
 
 
 def enum_values(enum_cls) -> set[str]:
     return {member.value for member in enum_cls}
 
 
-def normalize_enum_value(value: str, enum_cls, error_message: str) -> str:
-    value = value.strip().lower()
-
-    if value not in enum_values(enum_cls):
+def normalize_enum_value(value, enum_cls, error_message: str) -> str:
+    if value is None:
         raise ValueError(error_message)
 
-    return value
+    normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+
+    if normalized not in enum_values(enum_cls):
+        raise ValueError(error_message)
+
+    return normalized

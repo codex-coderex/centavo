@@ -1,4 +1,6 @@
 from sqlalchemy import select, insert, update, delete
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
 from db.tables import tag, transaction_tag
 from db.connection import get_conn
 
@@ -15,31 +17,30 @@ def get_tags(user_id: int):
 
 def get_tag(tag_id: int):
     with get_conn() as conn:
-        result = conn.execute(
+        row = conn.execute(
             select(tag).where(tag.c.tag_id == tag_id)
-        )
-        row = result.first()
+        ).first()
+
         return dict(row._mapping) if row else None
 
 
-def create_tag(user_id: int, name: str, color: str | None = None):
+def create_tag(user_id: int, name: str):
     with get_conn() as conn:
         result = conn.execute(
             insert(tag).values(
                 user_id=user_id,
                 name=name,
-                color=color,
             )
         )
         return result.inserted_primary_key[0]
 
 
 def update_tag(tag_id: int, **kwargs):
-    allowed = {"name", "color"}
+    allowed = {"name"}
     clean_values = {k: v for k, v in kwargs.items() if k in allowed}
 
     if not clean_values:
-        return
+        return None
 
     with get_conn() as conn:
         conn.execute(
@@ -52,8 +53,7 @@ def update_tag(tag_id: int, **kwargs):
 def delete_tag(tag_id: int):
     with get_conn() as conn:
         conn.execute(
-            delete(tag)
-            .where(tag.c.tag_id == tag_id)
+            delete(tag).where(tag.c.tag_id == tag_id)
         )
 
 
@@ -70,14 +70,15 @@ def get_transaction_tags(transaction_id: int):
 
 def add_tag_to_transaction(transaction_id: int, tag_id: int):
     with get_conn() as conn:
-        conn.execute(
-            insert(transaction_tag)
-            .prefix_with("OR IGNORE")
+        stmt = (
+            sqlite_insert(transaction_tag)
             .values(
                 transaction_id=transaction_id,
                 tag_id=tag_id,
             )
+            .on_conflict_do_nothing()
         )
+        conn.execute(stmt)
 
 
 def remove_tag_from_transaction(transaction_id: int, tag_id: int):

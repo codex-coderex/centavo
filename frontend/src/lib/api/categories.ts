@@ -1,0 +1,118 @@
+import { callApi } from './client';
+
+export type CategoryGroupType = 'income' | 'expense';
+
+export type CategoryGroup = {
+	group_id: number;
+	user_id: number;
+	name: string;
+	type: CategoryGroupType;
+	is_system: boolean;
+	is_active: boolean;
+};
+
+export type Category = {
+	category_id: number;
+	group_id: number;
+	name: string;
+	color?: string | null;
+	is_system: boolean;
+	is_active: boolean;
+};
+
+export function getCategoryGroups(userId: number) {
+	return callApi<CategoryGroup[]>('get_category_groups', userId);
+}
+
+export function getCategories(groupId: number) {
+	return callApi<Category[]>('get_categories', groupId);
+}
+
+export function getAllCategories(userId: number) {
+	return callApi<Category[]>('get_all_categories', userId);
+}
+
+export function createCategoryGroup(payload: {
+	user_id: number;
+	name: string;
+	type: CategoryGroupType;
+}) {
+	return callApi<{ group_id: number }>(
+		'create_category_group',
+		payload.user_id,
+		payload.name,
+		payload.type
+	);
+}
+
+export function createCategory(payload: {
+	group_id: number;
+	name: string;
+	color?: string | null;
+}) {
+	return callApi<{ category_id: number }>(
+		'create_category',
+		payload.group_id,
+		payload.name,
+		payload.color ?? null
+	);
+}
+
+export function updateCategoryGroup(
+	groupId: number,
+	payload: {
+		name?: string;
+		type?: CategoryGroupType;
+		is_active?: boolean;
+	} = {}
+) {
+	return callApi<void>(
+		'update_category_group',
+		groupId,
+		payload.name ?? null,
+		payload.type ?? null,
+		payload.is_active ?? null
+	);
+}
+
+export function updateCategory(
+	categoryId: number,
+	payload: {
+		name?: string;
+		color?: string | null;
+		is_active?: boolean;
+	} = {}
+) {
+	return callApi<void>(
+		'update_category',
+		categoryId,
+		payload.name ?? null,
+		payload.color ?? null,
+		payload.is_active ?? null
+	);
+}
+
+export function removeCategory(categoryId: number) {
+	return callApi<{ status: 'deleted' | 'deactivated' }>(
+		'remove_category',
+		categoryId
+	);
+}
+
+export function removeCategoryGroup(groupId: number) {
+	return callApi<{ status: 'deleted' | 'deactivated' }>(
+		'remove_category_group',
+		groupId
+	);
+}
+
+export function deactivateCategory(categoryId: number) {
+	return callApi<{ status: 'deactivated' }>('deactivate_category', categoryId);
+}
+
+export function deactivateCategoryGroup(groupId: number) {
+	return callApi<{ status: 'deactivated' }>(
+		'deactivate_category_group',
+		groupId
+	);
+}
