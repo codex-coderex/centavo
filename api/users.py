@@ -1,24 +1,30 @@
 import services.user_service as service
+from api.responses import ok, fail
 
 
 def get_users():
-    return service.get_users()
+    try:
+        return ok(service.get_users())
+    except ValueError as e:
+        return fail(e)
 
 
 def get_user(user_id):
-    return service.get_user(user_id)
-
-
-def create_user(name, currency_code):
     try:
-        return service.create_user(name, currency_code)
+        return ok(service.get_user(user_id))
     except ValueError as e:
-        return {"ok": False, "error": str(e)}
+        return fail(e)
 
 
-def update_user(user_id, name=None, currency_code=None):
+def create_user(name):
     try:
-        service.update_user(user_id, name=name, currency_code=currency_code)
-        return {"ok": True}
+        return ok(service.create_user(name))
     except ValueError as e:
-        return {"ok": False, "error": str(e)}
+        return fail(e)
+
+
+def update_user(user_id, name=None):
+    try:
+        return ok(service.update_user(user_id, name=name))
+    except ValueError as e:
+        return fail(e)

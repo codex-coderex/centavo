@@ -1,48 +1,58 @@
 import services.tag_service as service
+from api.responses import ok, fail
 
 
 def get_tags(user_id):
-    return service.get_tags(user_id)
+    try:
+        return ok(service.get_tags(user_id))
+    except ValueError as e:
+        return fail(e)
 
 
 def get_tag(tag_id):
-    return service.get_tag(tag_id)
-
-
-def create_tag(user_id, name, color=None):
     try:
-        return service.create_tag(user_id, name, color=color)
+        return ok(service.get_tag(tag_id))
     except ValueError as e:
-        return {"ok": False, "error": str(e)}
+        return fail(e)
 
 
-def update_tag(tag_id, name=None, color=None):
+def create_tag(user_id, name):
     try:
-        service.update_tag(tag_id, name=name, color=color)
-        return {"ok": True}
+        return ok(service.create_tag(user_id, name))
     except ValueError as e:
-        return {"ok": False, "error": str(e)}
+        return fail(e)
+
+
+def update_tag(tag_id, name=None):
+    try:
+        return ok(service.update_tag(tag_id, name=name))
+    except ValueError as e:
+        return fail(e)
 
 
 def delete_tag(tag_id):
     try:
-        service.delete_tag(tag_id)
-        return {"ok": True}
+        return ok(service.delete_tag(tag_id))
     except ValueError as e:
-        return {"ok": False, "error": str(e)}
+        return fail(e)
 
 
 def get_transaction_tags(transaction_id):
-    return service.get_transaction_tags(transaction_id)
+    try:
+        return ok(service.get_transaction_tags(transaction_id))
+    except ValueError as e:
+        return fail(e)
 
 
 def add_tag_to_transaction(transaction_id, tag_id):
     try:
-        service.add_tag_to_transaction(transaction_id, tag_id)
-        return {"ok": True}
+        return ok(service.add_tag_to_transaction(transaction_id, tag_id))
     except ValueError as e:
-        return {"ok": False, "error": str(e)}
+        return fail(e)
 
 
 def remove_tag_from_transaction(transaction_id, tag_id):
-    service.remove_tag_from_transaction(transaction_id, tag_id)
+    try:
+        return ok(service.remove_tag_from_transaction(transaction_id, tag_id))
+    except ValueError as e:
+        return fail(e)
