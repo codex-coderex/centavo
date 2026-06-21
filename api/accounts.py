@@ -1,45 +1,28 @@
 import services.account_service as service
-from api.responses import ok, fail
+from api.responses import safe
 
 
 def get_accounts(user_id, active_only=True):
-    try:
-        return ok(service.get_accounts(user_id, active_only=active_only))
-    except ValueError as e:
-        return fail(e)
+    return safe(lambda: service.get_accounts(user_id, active_only=active_only))
 
 
 def get_account(account_id):
-    try:
-        return ok(service.get_account(account_id))
-    except ValueError as e:
-        return fail(e)
+    return safe(lambda: service.get_account(account_id))
 
 
 def create_account(user_id, name, type, opening_balance=0):
-    try:
-        return ok(service.create_account(user_id, name, type, opening_balance=opening_balance))
-    except ValueError as e:
-        return fail(e)
+    return safe(lambda: service.create_account(user_id, name, type, opening_balance=opening_balance))
 
 
 def update_account(account_id, name=None, type=None, opening_balance=None, status=None):
-    try:
-        return ok(
-            service.update_account(
-                account_id,
-                name=name,
-                type=type,
-                opening_balance=opening_balance,
-                status=status,
-            )
-        )
-    except ValueError as e:
-        return fail(e)
+    return safe(lambda: service.update_account(
+        account_id,
+        name=name,
+        type=type,
+        opening_balance=opening_balance,
+        status=status,
+    ))
 
 
 def archive_account(account_id):
-    try:
-        return ok(service.archive_account(account_id))
-    except ValueError as e:
-        return fail(e)
+    return safe(lambda: service.archive_account(account_id))
