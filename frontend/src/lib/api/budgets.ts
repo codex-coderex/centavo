@@ -15,7 +15,7 @@ export type BudgetItem = {
 	budget_item_id: number;
 	budget_id: number;
 	category_id: number;
-	planned_amount: number | string;
+	planned_amount_minor: number;
 	rollover_enabled: boolean;
 };
 
@@ -53,7 +53,7 @@ export function updateBudget(
 		end_date?: string | null;
 	} = {}
 ) {
-	return callApi<void>(
+	return callApi<{ status: string }>(
 		'update_budget',
 		budgetId,
 		payload.name ?? null,
@@ -64,7 +64,7 @@ export function updateBudget(
 }
 
 export function deleteBudget(budgetId: number) {
-	return callApi<void>('delete_budget', budgetId);
+	return callApi<{ status: string }>('delete_budget', budgetId);
 }
 
 export function getBudgetItems(budgetId: number) {
@@ -94,7 +94,7 @@ export function updateBudgetItem(
 		rollover_enabled?: boolean | null;
 	} = {}
 ) {
-	return callApi<void>(
+	return callApi<{ status: string }>(
 		'update_budget_item',
 		budgetItemId,
 		payload.planned_amount ?? null,
@@ -104,5 +104,5 @@ export function updateBudgetItem(
 }
 
 export function deleteBudgetItem(budgetItemId: number) {
-	return callApi<void>('delete_budget_item', budgetItemId);
+	return callApi<{ status: string }>('delete_budget_item', budgetItemId);
 }

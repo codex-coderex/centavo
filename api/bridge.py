@@ -147,7 +147,8 @@ class FinanceApi:
         account_id,
         amount,
         transaction_date,
-        category_id=None,
+        category_id,
+        budget_item_id=None,
         payee=None,
         notes=None,
         recurring_rule_id=None,
@@ -157,17 +158,28 @@ class FinanceApi:
             amount=amount,
             transaction_date=transaction_date,
             category_id=category_id,
+            budget_item_id=budget_item_id,
             payee=payee,
             notes=notes,
             recurring_rule_id=recurring_rule_id,
         )
 
-    def create_transfer(self, from_account_id, to_account_id, amount, transaction_date, payee="Transfer", notes=None):
+    def create_transfer(
+        self,
+        from_account_id,
+        to_account_id,
+        amount,
+        transaction_date,
+        category_id,
+        payee="Transfer",
+        notes=None,
+    ):
         return transactions.create_transfer(
             from_account_id=from_account_id,
             to_account_id=to_account_id,
             amount=amount,
             transaction_date=transaction_date,
+            category_id=category_id,
             payee=payee,
             notes=notes,
         )
@@ -179,6 +191,7 @@ class FinanceApi:
         amount=None,
         transaction_date=None,
         category_id=None,
+        budget_item_id=None,
         payee=None,
         notes=None,
         recurring_rule_id=None,
@@ -189,6 +202,7 @@ class FinanceApi:
             amount=amount,
             transaction_date=transaction_date,
             category_id=category_id,
+            budget_item_id=budget_item_id,
             payee=payee,
             notes=notes,
             recurring_rule_id=recurring_rule_id,
@@ -196,6 +210,18 @@ class FinanceApi:
 
     def delete_transaction(self, transaction_id):
         return transactions.delete_transaction(transaction_id)
+
+    def update_transfer(self, transfer_id, amount=None, transaction_date=None, payee=None, notes=None):
+        return transactions.update_transfer(
+            transfer_id,
+            amount=amount,
+            transaction_date=transaction_date,
+            payee=payee,
+            notes=notes,
+        )
+
+    def delete_transfer(self, transfer_id):
+        return transactions.delete_transfer(transfer_id)
 
 
     # Tags

@@ -8,7 +8,7 @@ export type RecurringRule = {
 	account_id: number;
 	category_id: number;
 	name: string;
-	expected_amount: number | string;
+	expected_amount_minor: number;
 	interval: number;
 	frequency_unit: FrequencyUnit;
 	start_date: string;
@@ -69,7 +69,7 @@ export function updateRecurringRule(
 		status?: RecurringStatus | null;
 	} = {}
 ) {
-	return callApi<void>(
+	return callApi<{ status: string }>(
 		'update_recurring_rule',
 		recurringRuleId,
 		payload.account_id ?? null,
@@ -86,15 +86,15 @@ export function updateRecurringRule(
 }
 
 export function pauseRecurringRule(recurringRuleId: number) {
-	return callApi<void>('pause_recurring_rule', recurringRuleId);
+	return callApi<{ status: string }>('pause_recurring_rule', recurringRuleId);
 }
 
 export function resumeRecurringRule(recurringRuleId: number) {
-	return callApi<void>('resume_recurring_rule', recurringRuleId);
+	return callApi<{ status: string }>('resume_recurring_rule', recurringRuleId);
 }
 
 export function deactivateRecurringRule(recurringRuleId: number) {
-	return callApi<void>('deactivate_recurring_rule', recurringRuleId);
+	return callApi<{ status: string }>('deactivate_recurring_rule', recurringRuleId);
 }
 
 export function generateTransaction(recurringRuleId: number) {

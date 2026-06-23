@@ -1,6 +1,6 @@
 import { callApi } from './client';
 
-export type CategoryGroupType = 'income' | 'expense';
+export type CategoryGroupType = 'income' | 'expense' | 'transfer';
 
 export type CategoryGroup = {
 	group_id: number;
@@ -60,7 +60,7 @@ export function updateCategoryGroup(
 		is_active?: boolean | null;
 	} = {}
 ) {
-	return callApi<void>(
+	return callApi<{ status: string }>(
 		'update_category_group',
 		groupId,
 		payload.name ?? null,
@@ -73,7 +73,7 @@ export function updateCategory(
 	categoryId: number,
 	payload: { name?: string | null; is_active?: boolean | null } = {}
 ) {
-	return callApi<void>(
+	return callApi<{ status: string }>(
 		'update_category',
 		categoryId,
 		payload.name ?? null,
@@ -82,17 +82,17 @@ export function updateCategory(
 }
 
 export function deactivateCategory(categoryId: number) {
-	return callApi<void>('deactivate_category', categoryId);
+	return callApi<{ status: string }>('deactivate_category', categoryId);
 }
 
 export function deactivateCategoryGroup(groupId: number) {
-	return callApi<void>('deactivate_category_group', groupId);
+	return callApi<{ status: string }>('deactivate_category_group', groupId);
 }
 
 export function removeCategory(categoryId: number) {
-	return callApi<void>('remove_category', categoryId);
+	return callApi<{ status: string }>('remove_category', categoryId);
 }
 
 export function removeCategoryGroup(groupId: number) {
-	return callApi<void>('remove_category_group', groupId);
+	return callApi<{ status: string }>('remove_category_group', groupId);
 }

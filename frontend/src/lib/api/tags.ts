@@ -19,11 +19,11 @@ export function createTag(payload: { user_id: number; name: string }) {
 }
 
 export function updateTag(tagId: number, payload: { name?: string | null } = {}) {
-	return callApi<void>('update_tag', tagId, payload.name ?? null);
+	return callApi<{ status: string }>('update_tag', tagId, payload.name ?? null);
 }
 
 export function deleteTag(tagId: number) {
-	return callApi<void>('delete_tag', tagId);
+	return callApi<{ status: string }>('delete_tag', tagId);
 }
 
 export function getTransactionTags(transactionId: number) {
@@ -31,9 +31,9 @@ export function getTransactionTags(transactionId: number) {
 }
 
 export function addTagToTransaction(transactionId: number, tagId: number) {
-	return callApi<void>('add_tag_to_transaction', transactionId, tagId);
+	return callApi<{ status: string }>('add_tag_to_transaction', transactionId, tagId);
 }
 
 export function removeTagFromTransaction(transactionId: number, tagId: number) {
-	return callApi<void>('remove_tag_from_transaction', transactionId, tagId);
+	return callApi<{ status: string }>('remove_tag_from_transaction', transactionId, tagId);
 }
