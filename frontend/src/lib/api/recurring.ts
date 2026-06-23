@@ -4,94 +4,99 @@ export type FrequencyUnit = 'day' | 'week' | 'month' | 'year';
 export type RecurringStatus = 'active' | 'paused' | 'inactive';
 
 export type RecurringRule = {
-	recurring_id: number;
+	recurring_rule_id: number;
 	account_id: number;
 	category_id: number;
-	merchant?: string | null;
-	amount_minor: number;
+	name: string;
+	expected_amount: number | string;
 	interval: number;
 	frequency_unit: FrequencyUnit;
-	next_due: string;
+	start_date: string;
+	next_due_date: string;
 	end_date?: string | null;
 	status: RecurringStatus;
 };
 
-export function getRecurring(userId: number) {
-	return callApi<RecurringRule[]>('get_recurring', userId);
+export function getRecurringRules(userId: number) {
+	return callApi<RecurringRule[]>('get_recurring_rules', userId);
 }
 
-export function getRecurringById(recurringId: number) {
-	return callApi<RecurringRule | null>('get_recurring_by_id', recurringId);
+export function getRecurringRule(recurringRuleId: number) {
+	return callApi<RecurringRule | null>('get_recurring_rule', recurringRuleId);
 }
 
-export function getDueRecurring() {
-	return callApi<RecurringRule[]>('get_due_recurring');
+export function getDueRecurringRules(asOf?: string | null) {
+	return callApi<RecurringRule[]>('get_due_recurring_rules', asOf ?? null);
 }
 
-export function createRecurring(payload: {
+export function createRecurringRule(payload: {
 	account_id: number;
-	amount: number | string;
+	category_id: number;
+	name: string;
+	expected_amount: number | string;
 	interval: number;
 	frequency_unit: FrequencyUnit;
-	next_due: string;
-	category_id: number;
-	merchant?: string | null;
+	start_date: string;
+	next_due_date: string;
 	end_date?: string | null;
 }) {
-	return callApi<{ recurring_id: number }>(
-		'create_recurring',
+	return callApi<{ recurring_rule_id: number }>(
+		'create_recurring_rule',
 		payload.account_id,
-		payload.amount,
+		payload.category_id,
+		payload.name,
+		payload.expected_amount,
 		payload.interval,
 		payload.frequency_unit,
-		payload.next_due,
-		payload.category_id,
-		payload.merchant ?? null,
+		payload.start_date,
+		payload.next_due_date,
 		payload.end_date ?? null
 	);
 }
 
-export function updateRecurring(
-	recurringId: number,
+export function updateRecurringRule(
+	recurringRuleId: number,
 	payload: {
 		account_id?: number | null;
-		amount?: number | string | null;
+		category_id?: number | null;
+		name?: string | null;
+		expected_amount?: number | string | null;
 		interval?: number | null;
 		frequency_unit?: FrequencyUnit | null;
-		next_due?: string | null;
-		category_id?: number | null;
-		merchant?: string | null;
+		start_date?: string | null;
+		next_due_date?: string | null;
 		end_date?: string | null;
 		status?: RecurringStatus | null;
 	} = {}
 ) {
 	return callApi<void>(
-		'update_recurring',
-		recurringId,
+		'update_recurring_rule',
+		recurringRuleId,
 		payload.account_id ?? null,
-		payload.amount ?? null,
+		payload.category_id ?? null,
+		payload.name ?? null,
+		payload.expected_amount ?? null,
 		payload.interval ?? null,
 		payload.frequency_unit ?? null,
-		payload.next_due ?? null,
-		payload.category_id ?? null,
-		payload.merchant ?? null,
+		payload.start_date ?? null,
+		payload.next_due_date ?? null,
 		payload.end_date ?? null,
 		payload.status ?? null
 	);
 }
 
-export function pauseRecurring(recurringId: number) {
-	return callApi<void>('pause_recurring', recurringId);
+export function pauseRecurringRule(recurringRuleId: number) {
+	return callApi<void>('pause_recurring_rule', recurringRuleId);
 }
 
-export function resumeRecurring(recurringId: number) {
-	return callApi<void>('resume_recurring', recurringId);
+export function resumeRecurringRule(recurringRuleId: number) {
+	return callApi<void>('resume_recurring_rule', recurringRuleId);
 }
 
-export function deactivateRecurring(recurringId: number) {
-	return callApi<void>('deactivate_recurring', recurringId);
+export function deactivateRecurringRule(recurringRuleId: number) {
+	return callApi<void>('deactivate_recurring_rule', recurringRuleId);
 }
 
-export function generateTransaction(recurringId: number) {
-	return callApi<{ transaction_id: number }>('generate_transaction', recurringId);
+export function generateTransaction(recurringRuleId: number) {
+	return callApi<{ transaction_id: number }>('generate_transaction', recurringRuleId);
 }

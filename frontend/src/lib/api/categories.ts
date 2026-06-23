@@ -15,7 +15,6 @@ export type Category = {
 	category_id: number;
 	group_id: number;
 	name: string;
-	color?: string | null;
 	is_system: boolean;
 	is_active: boolean;
 };
@@ -45,25 +44,20 @@ export function createCategoryGroup(payload: {
 	);
 }
 
-export function createCategory(payload: {
-	group_id: number;
-	name: string;
-	color?: string | null;
-}) {
+export function createCategory(payload: { group_id: number; name: string }) {
 	return callApi<{ category_id: number }>(
 		'create_category',
 		payload.group_id,
-		payload.name,
-		payload.color ?? null
+		payload.name
 	);
 }
 
 export function updateCategoryGroup(
 	groupId: number,
 	payload: {
-		name?: string;
-		type?: CategoryGroupType;
-		is_active?: boolean;
+		name?: string | null;
+		type?: CategoryGroupType | null;
+		is_active?: boolean | null;
 	} = {}
 ) {
 	return callApi<void>(
@@ -77,42 +71,28 @@ export function updateCategoryGroup(
 
 export function updateCategory(
 	categoryId: number,
-	payload: {
-		name?: string;
-		color?: string | null;
-		is_active?: boolean;
-	} = {}
+	payload: { name?: string | null; is_active?: boolean | null } = {}
 ) {
 	return callApi<void>(
 		'update_category',
 		categoryId,
 		payload.name ?? null,
-		payload.color ?? null,
 		payload.is_active ?? null
 	);
 }
 
-export function removeCategory(categoryId: number) {
-	return callApi<{ status: 'deleted' | 'deactivated' }>(
-		'remove_category',
-		categoryId
-	);
-}
-
-export function removeCategoryGroup(groupId: number) {
-	return callApi<{ status: 'deleted' | 'deactivated' }>(
-		'remove_category_group',
-		groupId
-	);
-}
-
 export function deactivateCategory(categoryId: number) {
-	return callApi<{ status: 'deactivated' }>('deactivate_category', categoryId);
+	return callApi<void>('deactivate_category', categoryId);
 }
 
 export function deactivateCategoryGroup(groupId: number) {
-	return callApi<{ status: 'deactivated' }>(
-		'deactivate_category_group',
-		groupId
-	);
+	return callApi<void>('deactivate_category_group', groupId);
+}
+
+export function removeCategory(categoryId: number) {
+	return callApi<void>('remove_category', categoryId);
+}
+
+export function removeCategoryGroup(groupId: number) {
+	return callApi<void>('remove_category_group', groupId);
 }
