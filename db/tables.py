@@ -39,7 +39,7 @@ category_group = Table("category_group", metadata,
     Column("type", String, nullable=False),
     Column("is_system", Boolean, nullable=False, server_default=text("0")),
     Column("is_active", Boolean, nullable=False, server_default=text("1")),
-    CheckConstraint("type IN ('income','expense')", name="ck_category_group_type"),
+    CheckConstraint("type IN ('income','expense','transfer')", name="ck_category_group_type"),
     UniqueConstraint("user_id", "type", "name", name="uq_category_group_user_type_name"),
 )
 
@@ -150,8 +150,9 @@ tag = Table("tag", metadata,
 transaction = Table("transaction", metadata,
     Column("transaction_id", Integer, primary_key=True, autoincrement=True),
     Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
-    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=True),
-    Column("recurring_rule_id", Integer, ForeignKey("recurring_rule.recurring_rule_id")),
+    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=False),
+    Column("budget_item_id", Integer, ForeignKey("budget_item.budget_item_id", ondelete="SET NULL"), nullable=True),
+    Column("recurring_rule_id", Integer, ForeignKey("recurring_rule.recurring_rule_id", ondelete="SET NULL"), nullable=True),
     Column("payee", String),
     Column("amount_minor", Integer, nullable=False),
     Column("transaction_date", DateTime, nullable=False),
@@ -210,6 +211,7 @@ Index("ix_tag_user_id", tag.c.user_id)
 
 Index("ix_transaction_account_id", transaction.c.account_id)
 Index("ix_transaction_category_id", transaction.c.category_id)
+Index("ix_transaction_budget_item_id", transaction.c.budget_item_id)
 Index("ix_transaction_recurring_rule_id", transaction.c.recurring_rule_id)
 Index("ix_transaction_transfer_id", transaction.c.transfer_id)
 Index("ix_transaction_transaction_date", transaction.c.transaction_date)

@@ -40,7 +40,8 @@ def create_transaction(
     account_id: int,
     amount_minor: int,
     transaction_date,
-    category_id: int | None = None,
+    category_id: int,
+    budget_item_id: int | None = None,
     payee: str | None = None,
     notes: str | None = None,
     recurring_rule_id: int | None = None,
@@ -53,6 +54,7 @@ def create_transaction(
             amount_minor=amount_minor,
             transaction_date=transaction_date,
             category_id=category_id,
+            budget_item_id=budget_item_id,
             payee=payee,
             notes=notes,
             recurring_rule_id=recurring_rule_id,
@@ -65,7 +67,8 @@ def create_transaction_with_conn(
     account_id: int,
     amount_minor: int,
     transaction_date,
-    category_id: int | None = None,
+    category_id: int,
+    budget_item_id: int | None = None,
     payee: str | None = None,
     notes: str | None = None,
     recurring_rule_id: int | None = None,
@@ -75,12 +78,13 @@ def create_transaction_with_conn(
         insert(transaction).values(
             account_id=account_id,
             category_id=category_id,
-            recurring_rule_id=recurring_rule_id,
+            budget_item_id=budget_item_id,
             payee=payee,
             amount_minor=amount_minor,
             transaction_date=transaction_date,
             notes=notes,
             created_at=datetime.now(),
+            recurring_rule_id=recurring_rule_id,
             transfer_id=transfer_id,
         )
     )
@@ -96,11 +100,12 @@ def update_transaction_with_conn(conn, transaction_id: int, **kwargs):
     allowed = {
         "account_id",
         "category_id",
-        "recurring_rule_id",
+        "budget_item_id",
         "payee",
         "amount_minor",
         "transaction_date",
         "notes",
+        "recurring_rule_id",
         "transfer_id",
     }
     clean_values = {k: v for k, v in kwargs.items() if k in allowed}
@@ -121,3 +126,20 @@ def delete_transaction(transaction_id: int):
             delete(transaction)
             .where(transaction.c.transaction_id == transaction_id)
         )
+
+
+def get_transactions_by_transfer(transfer_id: int):
+    with get_conn() as conn:
+        result = conn.execute(
+            select(transaction)
+            .where(transaction.c.transfer_id == transfer_id)
+            .order_by(transaction.c.transaction_id)
+        )
+        return [dict(row._mapping) for row in result]
+
+
+def delete_transactions_by_transfer_with_conn(conn, transfer_id: int):
+    conn.execute(
+        delete(transaction)
+        .where(transaction.c.transfer_id == transfer_id)
+    )

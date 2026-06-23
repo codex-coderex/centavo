@@ -9,6 +9,7 @@ class AccountStatus(StrEnum):
 class CategoryGroupType(StrEnum):
     INCOME = "income"
     EXPENSE = "expense"
+    TRANSFER = "transfer"
 
 
 class BudgetPeriod(StrEnum):

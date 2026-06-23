@@ -84,5 +84,10 @@ def update_account(
 def archive_account(account_id: int):
     if accounts_q.get_account(account_id) is None:
         raise ValueError("Account does not exist")
-    accounts_q.archive_account(account_id)
+
+    accounts_q.update_account(
+        account_id,
+        status=AccountStatus.ARCHIVED.value,
+    )
+
     return {"status": "archived"}

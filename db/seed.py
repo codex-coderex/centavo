@@ -104,6 +104,9 @@ def seed_categories(conn, user_id: int) -> dict[str, int]:
             "Interest",
             "Gifts Received",
         ]),
+        ("Transfer", "transfer", [
+            "Account Transfer",
+        ]),
         ("Housing", "expense", [
             "Rent",
             "Electricity",

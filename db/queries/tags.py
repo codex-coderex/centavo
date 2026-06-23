@@ -68,7 +68,7 @@ def get_transaction_tags(transaction_id: int):
         return [dict(row._mapping) for row in result]
 
 
-def add_tag_to_transaction(transaction_id: int, tag_id: int):
+def create_transaction_tag(transaction_id: int, tag_id: int):
     with get_conn() as conn:
         stmt = (
             sqlite_insert(transaction_tag)
@@ -81,7 +81,7 @@ def add_tag_to_transaction(transaction_id: int, tag_id: int):
         conn.execute(stmt)
 
 
-def remove_tag_from_transaction(transaction_id: int, tag_id: int):
+def delete_transaction_tag(transaction_id: int, tag_id: int):
     with get_conn() as conn:
         conn.execute(
             delete(transaction_tag)

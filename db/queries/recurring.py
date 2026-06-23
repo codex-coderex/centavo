@@ -124,14 +124,3 @@ def update_recurring_rule_with_conn(conn, recurring_rule_id: int, **kwargs):
         .values(**clean_values)
     )
 
-
-def pause_recurring_rule(recurring_rule_id: int):
-    update_recurring_rule(recurring_rule_id, status="paused")
-
-
-def resume_recurring_rule(recurring_rule_id: int):
-    update_recurring_rule(recurring_rule_id, status="active")
-
-
-def deactivate_recurring_rule(recurring_rule_id: int):
-    update_recurring_rule(recurring_rule_id, status="inactive")

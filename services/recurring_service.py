@@ -43,25 +43,68 @@ def _ensure_active_category(category_id: int):
     return category
 
 
-def create_recurring_rule(account_id: int, category_id: int, name: str, expected_amount, interval: int, frequency_unit: str, start_date, next_due_date, end_date=None):
+def _validate_account_category(
+    account_id: int,
+    category_id: int,
+    amount_minor: int,
+):
+    account = _ensure_active_account(account_id)
+    category = _ensure_active_category(category_id)
+    group = categories_q.get_category_group(category["group_id"])
+
+    if group is None or group["user_id"] != account["user_id"]:
+        raise ValueError("Category does not belong to the account owner")
+
+    if amount_minor > 0 and group["type"] != "income":
+        raise ValueError("Positive recurring amounts require an income category")
+
+    if amount_minor < 0 and group["type"] != "expense":
+        raise ValueError("Negative recurring amounts require an expense category")
+
+
+def create_recurring_rule(
+    account_id: int,
+    category_id: int,
+    name: str,
+    expected_amount,
+    interval: int,
+    frequency_unit: str,
+    start_date,
+    next_due_date,
+    end_date=None,
+):
     name = name.strip()
+
     if not name:
         raise ValueError("Recurring rule name is required")
-
-    _ensure_active_account(account_id)
-    _ensure_active_category(category_id)
 
     if interval <= 0:
         raise ValueError("Interval must be greater than zero")
 
-    frequency_unit = normalize_enum_value(frequency_unit, FrequencyUnit, "Invalid frequency unit")
+    frequency_unit = normalize_enum_value(
+        frequency_unit,
+        FrequencyUnit,
+        "Invalid frequency unit",
+    )
+
     expected_amount_minor = to_minor_units(expected_amount)
+
     if expected_amount_minor == 0:
         raise ValueError("Recurring amount cannot be zero")
+
+    _validate_account_category(
+        account_id,
+        category_id,
+        expected_amount_minor,
+    )
 
     start_date = require_datetime(start_date, "Start date")
     next_due_date = require_datetime(next_due_date, "Next due date")
     end_date = parse_datetime(end_date, "End date")
+
+    if next_due_date < start_date:
+        raise ValueError("Next due date cannot be before start date")
+
     if end_date is not None and end_date < next_due_date:
         raise ValueError("End date cannot be before next due date")
 
@@ -76,6 +119,7 @@ def create_recurring_rule(account_id: int, category_id: int, name: str, expected
         next_due_date=next_due_date,
         end_date=end_date,
     )
+
     return {"recurring_rule_id": recurring_rule_id}
 
 
@@ -85,65 +129,129 @@ def update_recurring_rule(recurring_rule_id: int, **kwargs):
         raise ValueError("Recurring rule does not exist")
 
     clean_values = {}
+
     if "account_id" in kwargs:
-        _ensure_active_account(kwargs["account_id"])
         clean_values["account_id"] = kwargs["account_id"]
+
     if "category_id" in kwargs:
-        _ensure_active_category(kwargs["category_id"])
         clean_values["category_id"] = kwargs["category_id"]
+
     if "name" in kwargs:
         name = kwargs["name"].strip()
+
         if not name:
             raise ValueError("Recurring rule name cannot be empty")
+
         clean_values["name"] = name
+
     if "expected_amount" in kwargs:
         expected_amount_minor = to_minor_units(kwargs["expected_amount"])
+
         if expected_amount_minor == 0:
             raise ValueError("Recurring amount cannot be zero")
+
         clean_values["expected_amount_minor"] = expected_amount_minor
+
     if "interval" in kwargs:
         if kwargs["interval"] <= 0:
             raise ValueError("Interval must be greater than zero")
-        clean_values["interval"] = kwargs["interval"]
-    if "frequency_unit" in kwargs:
-        clean_values["frequency_unit"] = normalize_enum_value(kwargs["frequency_unit"], FrequencyUnit, "Invalid frequency unit")
-    if "start_date" in kwargs:
-        clean_values["start_date"] = require_datetime(kwargs["start_date"], "Start date")
-    if "next_due_date" in kwargs:
-        clean_values["next_due_date"] = require_datetime(kwargs["next_due_date"], "Next due date")
-    if "end_date" in kwargs:
-        clean_values["end_date"] = parse_datetime(kwargs["end_date"], "End date")
-    if "status" in kwargs:
-        clean_values["status"] = normalize_enum_value(kwargs["status"], RecurringStatus, "Invalid recurring status")
 
+        clean_values["interval"] = kwargs["interval"]
+
+    if "frequency_unit" in kwargs:
+        clean_values["frequency_unit"] = normalize_enum_value(
+            kwargs["frequency_unit"],
+            FrequencyUnit,
+            "Invalid frequency unit",
+        )
+
+    if "start_date" in kwargs:
+        clean_values["start_date"] = require_datetime(
+            kwargs["start_date"],
+            "Start date",
+        )
+
+    if "next_due_date" in kwargs:
+        clean_values["next_due_date"] = require_datetime(
+            kwargs["next_due_date"],
+            "Next due date",
+        )
+
+    if "end_date" in kwargs:
+        clean_values["end_date"] = parse_datetime(
+            kwargs["end_date"],
+            "End date",
+        )
+
+    if "status" in kwargs:
+        clean_values["status"] = normalize_enum_value(
+            kwargs["status"],
+            RecurringStatus,
+            "Invalid recurring status",
+        )
+
+    next_account_id = clean_values.get("account_id", recurring["account_id"])
+    next_category_id = clean_values.get("category_id", recurring["category_id"])
+    next_amount_minor = clean_values.get(
+        "expected_amount_minor",
+        recurring["expected_amount_minor"],
+    )
+
+    _validate_account_category(
+        next_account_id,
+        next_category_id,
+        next_amount_minor,
+    )
+
+    start_date = clean_values.get("start_date", recurring["start_date"])
     next_due_date = clean_values.get("next_due_date", recurring["next_due_date"])
     end_date = clean_values.get("end_date", recurring["end_date"])
+
+    if next_due_date < start_date:
+        raise ValueError("Next due date cannot be before start date")
+
     if end_date is not None and end_date < next_due_date:
         raise ValueError("End date cannot be before next due date")
 
     if clean_values:
         recurring_q.update_recurring_rule(recurring_rule_id, **clean_values)
+
     return {"status": "updated"}
 
 
 def pause_recurring_rule(recurring_rule_id: int):
     if recurring_q.get_recurring_rule(recurring_rule_id) is None:
         raise ValueError("Recurring rule does not exist")
-    recurring_q.pause_recurring_rule(recurring_rule_id)
+
+    recurring_q.update_recurring_rule(
+        recurring_rule_id,
+        status=RecurringStatus.PAUSED.value,
+    )
+
     return {"status": "paused"}
 
 
 def resume_recurring_rule(recurring_rule_id: int):
     if recurring_q.get_recurring_rule(recurring_rule_id) is None:
         raise ValueError("Recurring rule does not exist")
-    recurring_q.resume_recurring_rule(recurring_rule_id)
+
+    recurring_q.update_recurring_rule(
+        recurring_rule_id,
+        status=RecurringStatus.ACTIVE.value,
+    )
+
     return {"status": "active"}
 
 
 def deactivate_recurring_rule(recurring_rule_id: int):
     if recurring_q.get_recurring_rule(recurring_rule_id) is None:
         raise ValueError("Recurring rule does not exist")
-    recurring_q.deactivate_recurring_rule(recurring_rule_id)
+
+    recurring_q.update_recurring_rule(
+        recurring_rule_id,
+        status=RecurringStatus.INACTIVE.value,
+    )
+
     return {"status": "inactive"}
 
 
@@ -154,11 +262,20 @@ def generate_transaction(recurring_rule_id: int):
     if recurring["status"] != RecurringStatus.ACTIVE.value:
         raise ValueError("Recurring rule is not active")
 
-    _ensure_active_account(recurring["account_id"])
-    _ensure_active_category(recurring["category_id"])
+    _validate_account_category(
+        recurring["account_id"],
+        recurring["category_id"],
+        recurring["expected_amount_minor"],
+    )
 
-    next_due_date = calculate_next_due(recurring["next_due_date"], recurring["interval"], recurring["frequency_unit"])
+    next_due_date = calculate_next_due(
+        recurring["next_due_date"],
+        recurring["interval"],
+        recurring["frequency_unit"],
+    )
+
     end_date = recurring["end_date"]
+
     if isinstance(end_date, str):
         end_date = datetime.fromisoformat(end_date)
 
@@ -176,9 +293,17 @@ def generate_transaction(recurring_rule_id: int):
         )
 
         if end_date is not None and next_due_date > end_date:
-            recurring_q.update_recurring_rule_with_conn(conn, recurring_rule_id, status=RecurringStatus.INACTIVE.value)
+            recurring_q.update_recurring_rule_with_conn(
+                conn,
+                recurring_rule_id,
+                status=RecurringStatus.INACTIVE.value,
+            )
         else:
-            recurring_q.update_recurring_rule_with_conn(conn, recurring_rule_id, next_due_date=next_due_date)
+            recurring_q.update_recurring_rule_with_conn(
+                conn,
+                recurring_rule_id,
+                next_due_date=next_due_date,
+            )
 
     return {"transaction_id": transaction_id}
 

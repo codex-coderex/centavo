@@ -5,14 +5,6 @@ from db.connection import get_conn
 from db.tables import budget, budget_item
 
 
-def _row_to_dict(row):
-    return dict(row._mapping) if row else None
-
-
-def _rows_to_dicts(rows):
-    return [dict(row._mapping) for row in rows]
-
-
 def get_budgets(user_id: int):
     with get_conn() as conn:
         result = conn.execute(
@@ -20,7 +12,7 @@ def get_budgets(user_id: int):
             .where(budget.c.user_id == user_id)
             .order_by(budget.c.start_date.desc())
         )
-        return _rows_to_dicts(result)
+        return [dict(row._mapping) for row in result]
 
 
 def get_budget(budget_id: int):
@@ -29,18 +21,7 @@ def get_budget(budget_id: int):
             select(budget).where(budget.c.budget_id == budget_id)
         ).first()
 
-        return _row_to_dict(row)
-
-
-def get_budget_for_user(user_id: int, budget_id: int):
-    with get_conn() as conn:
-        row = conn.execute(
-            select(budget)
-            .where(budget.c.budget_id == budget_id)
-            .where(budget.c.user_id == user_id)
-        ).first()
-
-        return _row_to_dict(row)
+        return dict(row._mapping) if row else None
 
 
 def create_budget(
@@ -93,7 +74,7 @@ def get_budget_item(budget_item_id: int):
             .where(budget_item.c.budget_item_id == budget_item_id)
         ).first()
 
-        return _row_to_dict(row)
+        return dict(row._mapping) if row else None
 
 
 def get_budget_items(budget_id: int):
@@ -103,18 +84,7 @@ def get_budget_items(budget_id: int):
             .where(budget_item.c.budget_id == budget_id)
             .order_by(budget_item.c.category_id)
         )
-        return _rows_to_dicts(result)
-
-
-def get_budget_item_for_category(budget_id: int, category_id: int):
-    with get_conn() as conn:
-        row = conn.execute(
-            select(budget_item)
-            .where(budget_item.c.budget_id == budget_id)
-            .where(budget_item.c.category_id == category_id)
-        ).first()
-
-        return _row_to_dict(row)
+        return [dict(row._mapping) for row in result]
 
 
 def create_budget_item(
@@ -158,9 +128,3 @@ def delete_budget_item(budget_item_id: int):
         )
 
 
-def delete_budget_items(budget_id: int):
-    with get_conn() as conn:
-        conn.execute(
-            delete(budget_item)
-            .where(budget_item.c.budget_id == budget_id)
-        )

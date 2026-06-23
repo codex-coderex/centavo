@@ -61,10 +61,6 @@ def update_goal(goal_id: int, **kwargs):
         )
 
 
-def complete_goal(goal_id: int):
-    update_goal(goal_id, status="completed")
-
-
 def get_goal_accounts(goal_id: int):
     with get_conn() as conn:
         result = conn.execute(
@@ -74,23 +70,22 @@ def get_goal_accounts(goal_id: int):
         return [dict(row._mapping) for row in result]
 
 
-def add_account_to_goal(
+def create_goal_account(
     goal_id: int,
     account_id: int,
     allocated_amount_minor: int = 0,
 ):
     with get_conn() as conn:
-        result = conn.execute(
+        conn.execute(
             insert(goal_account).values(
                 goal_id=goal_id,
                 account_id=account_id,
                 allocated_amount_minor=allocated_amount_minor,
             )
         )
-        return result.inserted_primary_key
 
 
-def update_goal_account_allocation(
+def update_goal_account(
     goal_id: int,
     account_id: int,
     allocated_amount_minor: int,
@@ -104,7 +99,7 @@ def update_goal_account_allocation(
         )
 
 
-def remove_account_from_goal(goal_id: int, account_id: int):
+def delete_goal_account(goal_id: int, account_id: int):
     with get_conn() as conn:
         conn.execute(
             delete(goal_account)

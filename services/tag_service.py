@@ -64,10 +64,10 @@ def add_tag_to_transaction(transaction_id: int, tag_id: int):
     if tag["user_id"] != account["user_id"]:
         raise ValueError("Tag does not belong to the same user as the transaction")
 
-    tags_q.add_tag_to_transaction(transaction_id, tag_id)
+    tags_q.create_transaction_tag(transaction_id, tag_id)
     return {"status": "added"}
 
 
 def remove_tag_from_transaction(transaction_id: int, tag_id: int):
-    tags_q.remove_tag_from_transaction(transaction_id, tag_id)
+    tags_q.delete_transaction_tag(transaction_id, tag_id)
     return {"status": "removed"}

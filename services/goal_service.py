@@ -71,7 +71,12 @@ def update_goal(goal_id: int, name: str | None = None, target_amount=None, targe
 def complete_goal(goal_id: int):
     if goals_q.get_goal(goal_id) is None:
         raise ValueError("Goal does not exist")
-    goals_q.complete_goal(goal_id)
+
+    goals_q.update_goal(
+        goal_id,
+        status=GoalStatus.COMPLETED.value,
+    )
+
     return {"status": "completed"}
 
 
@@ -96,7 +101,12 @@ def add_account_to_goal(goal_id: int, account_id: int, allocated_amount=0):
     if allocated_amount_minor < 0:
         raise ValueError("Allocated amount cannot be negative")
 
-    goals_q.add_account_to_goal(goal_id=goal_id, account_id=account_id, allocated_amount_minor=allocated_amount_minor)
+    goals_q.create_goal_account(
+        goal_id=goal_id,
+        account_id=account_id,
+        allocated_amount_minor=allocated_amount_minor,
+    )
+
     return {"status": "added"}
 
 
@@ -109,16 +119,31 @@ def update_goal_account_allocation(goal_id: int, account_id: int, allocated_amou
     if account["user_id"] != goal["user_id"]:
         raise ValueError("Goal account must belong to the same user")
 
+    goal_accounts = goals_q.get_goal_accounts(goal_id)
+    if not any(row["account_id"] == account_id for row in goal_accounts):
+        raise ValueError("Account is not linked to this goal")
+
     allocated_amount_minor = to_minor_units(allocated_amount)
     if allocated_amount_minor < 0:
         raise ValueError("Allocated amount cannot be negative")
 
-    goals_q.update_goal_account_allocation(goal_id=goal_id, account_id=account_id, allocated_amount_minor=allocated_amount_minor)
+    goals_q.update_goal_account(
+        goal_id=goal_id,
+        account_id=account_id,
+        allocated_amount_minor=allocated_amount_minor,
+    )
+
     return {"status": "updated"}
 
 
 def remove_account_from_goal(goal_id: int, account_id: int):
     if goals_q.get_goal(goal_id) is None:
         raise ValueError("Goal does not exist")
-    goals_q.remove_account_from_goal(goal_id, account_id)
+
+    goal_accounts = goals_q.get_goal_accounts(goal_id)
+    if not any(row["account_id"] == account_id for row in goal_accounts):
+        raise ValueError("Account is not linked to this goal")
+
+    goals_q.delete_goal_account(goal_id, account_id)
+
     return {"status": "removed"}

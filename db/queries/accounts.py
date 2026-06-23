@@ -63,7 +63,3 @@ def update_account(account_id: int, **kwargs):
             .where(account.c.account_id == account_id)
             .values(**clean_values)
         )
-
-
-def archive_account(account_id: int):
-    update_account(account_id, status="archived")

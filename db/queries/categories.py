@@ -4,7 +4,7 @@ from db.tables import (
     category_group,
     transaction,
     budget_item,
-    recurring,
+    recurring_rule,
 )
 from db.connection import get_conn
 
@@ -53,17 +53,6 @@ def get_all_categories(user_id: int):
         return [dict(row._mapping) for row in result]
 
 
-def get_categories(group_id: int):
-    with get_conn() as conn:
-        result = conn.execute(
-            select(category)
-            .where(category.c.group_id == group_id)
-            .where(category.c.is_active.is_(True))
-            .order_by(category.c.name)
-        )
-        return [dict(row._mapping) for row in result]
-
-
 def get_category(category_id: int):
     with get_conn() as conn:
         result = conn.execute(
@@ -83,10 +72,8 @@ def create_category_group(
         "user_id": user_id,
         "name": name,
         "type": type,
+        "is_system": is_system,
     }
-
-    if is_system:
-        values["is_system"] = True
 
     with get_conn() as conn:
         result = conn.execute(insert(category_group).values(**values))
@@ -96,17 +83,13 @@ def create_category_group(
 def create_category(
     group_id: int,
     name: str,
-    color: str | None = None,
     is_system: bool = False,
 ):
     values = {
         "group_id": group_id,
         "name": name,
-        "color": color,
+        "is_system": is_system,
     }
-
-    if is_system:
-        values["is_system"] = True
 
     with get_conn() as conn:
         result = conn.execute(insert(category).values(**values))
@@ -118,7 +101,7 @@ def update_category_group(group_id: int, **kwargs):
     clean_values = {k: v for k, v in kwargs.items() if k in allowed}
 
     if not clean_values:
-        return
+        return None
 
     with get_conn() as conn:
         conn.execute(
@@ -129,11 +112,11 @@ def update_category_group(group_id: int, **kwargs):
 
 
 def update_category(category_id: int, **kwargs):
-    allowed = {"name", "color", "is_active"}
+    allowed = {"name", "is_active"}
     clean_values = {k: v for k, v in kwargs.items() if k in allowed}
 
     if not clean_values:
-        return
+        return None
 
     with get_conn() as conn:
         conn.execute(
@@ -141,14 +124,6 @@ def update_category(category_id: int, **kwargs):
             .where(category.c.category_id == category_id)
             .values(**clean_values)
         )
-
-
-def deactivate_category_group(group_id: int):
-    update_category_group(group_id, is_active=False)
-
-
-def deactivate_category(category_id: int):
-    update_category(category_id, is_active=False)
 
 
 def delete_category_group(group_id: int):
@@ -164,6 +139,14 @@ def delete_category(category_id: int):
         conn.execute(
             delete(category)
             .where(category.c.category_id == category_id)
+        )
+
+
+def delete_categories_by_group(group_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            delete(category)
+            .where(category.c.group_id == group_id)
         )
 
 
@@ -188,8 +171,8 @@ def category_has_references(category_id: int) -> bool:
             return True
 
         has_recurring = conn.execute(
-            select(recurring.c.recurring_id)
-            .where(recurring.c.category_id == category_id)
+            select(recurring_rule.c.recurring_rule_id)
+            .where(recurring_rule.c.category_id == category_id)
             .limit(1)
         ).first()
 
@@ -212,8 +195,8 @@ def get_category_reference_counts(category_id: int):
 
         recurring_count = conn.execute(
             select(func.count())
-            .select_from(recurring)
-            .where(recurring.c.category_id == category_id)
+            .select_from(recurring_rule)
+            .where(recurring_rule.c.category_id == category_id)
         ).scalar_one()
 
     return {
@@ -224,18 +207,34 @@ def get_category_reference_counts(category_id: int):
 
 
 def group_has_referenced_categories(group_id: int) -> bool:
-    categories = get_categories_by_group(group_id)
+    category_ids = (
+        select(category.c.category_id)
+        .where(category.c.group_id == group_id)
+    )
 
-    for row in categories:
-        if category_has_references(row["category_id"]):
+    with get_conn() as conn:
+        has_transaction = conn.execute(
+            select(transaction.c.transaction_id)
+            .where(transaction.c.category_id.in_(category_ids))
+            .limit(1)
+        ).first()
+
+        if has_transaction:
             return True
 
-    return False
+        has_budget_item = conn.execute(
+            select(budget_item.c.budget_item_id)
+            .where(budget_item.c.category_id.in_(category_ids))
+            .limit(1)
+        ).first()
 
+        if has_budget_item:
+            return True
 
-def delete_unused_categories_in_group(group_id: int):
-    with get_conn() as conn:
-        conn.execute(
-            delete(category)
-            .where(category.c.group_id == group_id)
-        )
+        has_recurring = conn.execute(
+            select(recurring_rule.c.recurring_rule_id)
+            .where(recurring_rule.c.category_id.in_(category_ids))
+            .limit(1)
+        ).first()
+
+        return has_recurring is not None

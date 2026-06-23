@@ -1,8 +1,8 @@
-"""initial offline finance schema
+"""initial schema
 
-Revision ID: 3f8981bcedd2
+Revision ID: 756f5c520879
 Revises: 
-Create Date: 2026-06-21 14:44:40.759041
+Create Date: 2026-06-23 11:11:31.927452
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '3f8981bcedd2'
+revision: str = '756f5c520879'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,6 +36,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('status', sa.String(), server_default=sa.text("'active'"), nullable=False),
     sa.CheckConstraint("status IN ('active','archived')", name='ck_account_status'),
+    sa.CheckConstraint("type IN ('checking','savings','cash','credit_card','line_of_credit','loan','mortgage','investment','other_asset','other_liability')", name='ck_account_type'),
     sa.ForeignKeyConstraint(['user_id'], ['user.user_id'], ),
     sa.PrimaryKeyConstraint('account_id'),
     sa.UniqueConstraint('user_id', 'name', name='uq_account_user_name')
@@ -69,7 +70,7 @@ def upgrade() -> None:
     sa.Column('type', sa.String(), nullable=False),
     sa.Column('is_system', sa.Boolean(), server_default=sa.text('0'), nullable=False),
     sa.Column('is_active', sa.Boolean(), server_default=sa.text('1'), nullable=False),
-    sa.CheckConstraint("type IN ('income','expense')", name='ck_category_group_type'),
+    sa.CheckConstraint("type IN ('income','expense','transfer')", name='ck_category_group_type'),
     sa.ForeignKeyConstraint(['user_id'], ['user.user_id'], ),
     sa.PrimaryKeyConstraint('group_id'),
     sa.UniqueConstraint('user_id', 'type', 'name', name='uq_category_group_user_type_name')
@@ -178,7 +179,8 @@ def upgrade() -> None:
     op.create_table('transaction',
     sa.Column('transaction_id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('account_id', sa.Integer(), nullable=False),
-    sa.Column('category_id', sa.Integer(), nullable=True),
+    sa.Column('category_id', sa.Integer(), nullable=False),
+    sa.Column('budget_item_id', sa.Integer(), nullable=True),
     sa.Column('recurring_rule_id', sa.Integer(), nullable=True),
     sa.Column('payee', sa.String(), nullable=True),
     sa.Column('amount_minor', sa.Integer(), nullable=False),
@@ -188,12 +190,14 @@ def upgrade() -> None:
     sa.Column('transfer_id', sa.Integer(), nullable=True),
     sa.CheckConstraint('amount_minor <> 0', name='ck_transaction_amount_minor'),
     sa.ForeignKeyConstraint(['account_id'], ['account.account_id'], ),
+    sa.ForeignKeyConstraint(['budget_item_id'], ['budget_item.budget_item_id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['category_id'], ['category.category_id'], ),
-    sa.ForeignKeyConstraint(['recurring_rule_id'], ['recurring_rule.recurring_rule_id'], ),
+    sa.ForeignKeyConstraint(['recurring_rule_id'], ['recurring_rule.recurring_rule_id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('transaction_id')
     )
     with op.batch_alter_table('transaction', schema=None) as batch_op:
         batch_op.create_index('ix_transaction_account_id', ['account_id'], unique=False)
+        batch_op.create_index('ix_transaction_budget_item_id', ['budget_item_id'], unique=False)
         batch_op.create_index('ix_transaction_category_id', ['category_id'], unique=False)
         batch_op.create_index('ix_transaction_recurring_rule_id', ['recurring_rule_id'], unique=False)
         batch_op.create_index('ix_transaction_transaction_date', ['transaction_date'], unique=False)
@@ -226,6 +230,7 @@ def downgrade() -> None:
         batch_op.drop_index('ix_transaction_transaction_date')
         batch_op.drop_index('ix_transaction_recurring_rule_id')
         batch_op.drop_index('ix_transaction_category_id')
+        batch_op.drop_index('ix_transaction_budget_item_id')
         batch_op.drop_index('ix_transaction_account_id')
 
     op.drop_table('transaction')
