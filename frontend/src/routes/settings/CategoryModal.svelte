@@ -3,6 +3,13 @@
 		CategoryGroup,
 		CategoryGroupType
 	} from '$lib/api/categories';
+	import SearchableCombobox from '$lib/shared/components/SearchableCombobox.svelte';
+
+	const categoryTypeOptions = [
+		{ value: 'expense', label: 'Expense' },
+		{ value: 'income', label: 'Income' },
+		{ value: 'transfer', label: 'Transfer' }
+	];
 
 	let {
 		categoryName = $bindable(),
@@ -26,6 +33,12 @@
 
 	let groupsForCategoryType = $derived(
 		groups.filter((group: CategoryGroup) => group.type === categoryType && group.is_active)
+	);
+	let categoryGroupOptions = $derived(
+		groupsForCategoryType.map((group: CategoryGroup) => ({
+			value: String(group.group_id),
+			label: group.name
+		}))
 	);
 
 	$effect(() => {
@@ -58,23 +71,24 @@
 
 		<label class="mt-4 grid gap-2">
 			<span class="text-sm font-medium">Category group type</span>
-			<select class="combobox" bind:value={categoryType}>
-				<option value="expense">Expense</option>
-				<option value="income">Income</option>
-				<option value="transfer">Transfer</option>
-			</select>
+			<SearchableCombobox
+				bind:value={categoryType}
+				options={categoryTypeOptions}
+				placeholder="Select a category group type"
+				searchPlaceholder="Search category group types..."
+			/>
 		</label>
 
 		<label class="mt-4 grid gap-2">
 			<span class="text-sm font-medium">Category group</span>
-			<select class="combobox" bind:value={selectedGroupId} disabled={groupsForCategoryType.length === 0}>
-				{#if groupsForCategoryType.length === 0}
-					<option value={null}>No active {categoryType} groups</option>
-				{/if}
-				{#each groupsForCategoryType as group}
-					<option value={group.group_id}>{group.name}</option>
-				{/each}
-			</select>
+			<SearchableCombobox
+				value={selectedGroupId === null ? '' : String(selectedGroupId)}
+				options={categoryGroupOptions}
+				placeholder={`No active ${categoryType} groups`}
+				searchPlaceholder="Search category groups..."
+				disabled={groupsForCategoryType.length === 0}
+				onChange={(value) => selectedGroupId = Number(value)}
+			/>
 			<p class="text-muted text-xs">
 				Only active {categoryType} category groups are shown here.
 			</p>

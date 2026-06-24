@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { getAccounts, type Account } from '$lib/api/accounts';
 	import { getAllCategories, type Category } from '$lib/api/categories';
+	import SearchableCombobox from '$lib/shared/components/SearchableCombobox.svelte';
 	import {
 		createRecurringRule,
 		deactivateRecurringRule,
@@ -39,6 +40,18 @@
 		{ value: 'month', label: 'Month' },
 		{ value: 'year', label: 'Year' }
 	];
+	let accountOptions = $derived(
+		accounts.map((account: Account) => ({
+			value: String(account.account_id),
+			label: account.name
+		}))
+	);
+	let categoryOptions = $derived(
+		categories.map((category: Category) => ({
+			value: String(category.category_id),
+			label: category.name
+		}))
+	);
 
 	function formatMoney(amountMinor: number) {
 		return new Intl.NumberFormat('en-PH', {
@@ -277,26 +290,26 @@
 
 			<label class="mt-4 grid gap-2">
 				<span class="text-sm font-medium text-slate-300">Account</span>
-				<select
-					class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400"
-					bind:value={accountId}
-				>
-					{#each accounts as account}
-						<option value={account.account_id}>{account.name}</option>
-					{/each}
-				</select>
+				<SearchableCombobox
+					value={accountId === null ? '' : String(accountId)}
+					options={accountOptions}
+					placeholder="Select an account"
+					searchPlaceholder="Search accounts..."
+					disabled={accounts.length === 0}
+					onChange={(value) => accountId = Number(value)}
+				/>
 			</label>
 
 			<label class="mt-4 grid gap-2">
 				<span class="text-sm font-medium text-slate-300">Category</span>
-				<select
-					class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400"
-					bind:value={categoryId}
-				>
-					{#each categories as category}
-						<option value={category.category_id}>{category.name}</option>
-					{/each}
-				</select>
+				<SearchableCombobox
+					value={categoryId === null ? '' : String(categoryId)}
+					options={categoryOptions}
+					placeholder="Select a category"
+					searchPlaceholder="Search categories..."
+					disabled={categories.length === 0}
+					onChange={(value) => categoryId = Number(value)}
+				/>
 			</label>
 
 			<div class="mt-4 grid grid-cols-[1fr_1.4fr] gap-4">
@@ -312,14 +325,12 @@
 
 				<label class="grid gap-2">
 					<span class="text-sm font-medium text-slate-300">Frequency</span>
-					<select
-						class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400"
+					<SearchableCombobox
 						bind:value={frequencyUnit}
-					>
-						{#each frequencyOptions as option}
-							<option value={option.value}>{option.label}</option>
-						{/each}
-					</select>
+						options={frequencyOptions}
+						placeholder="Select a frequency"
+						searchPlaceholder="Search frequencies..."
+					/>
 				</label>
 			</div>
 

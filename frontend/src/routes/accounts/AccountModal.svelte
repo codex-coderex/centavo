@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { AccountType } from '$lib/api/accounts';
+	import SearchableCombobox from '$lib/shared/components/SearchableCombobox.svelte';
 
 	export type AccountTypeOption = {
 		value: AccountType;
@@ -61,11 +62,12 @@
 
 		<label class="mt-4 grid gap-2">
 			<span class="text-sm font-medium">Account type</span>
-			<select class="combobox" bind:value={type}>
-				{#each accountTypes as accountType}
-					<option value={accountType.value}>{accountType.label}</option>
-				{/each}
-			</select>
+			<SearchableCombobox
+				bind:value={type}
+				options={accountTypes}
+				placeholder="Select an account type"
+				searchPlaceholder="Search account types..."
+			/>
 		</label>
 
 		<label class="mt-4 grid gap-2">

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+
 	type ComboboxOption = {
 		value: string;
 		label: string;
@@ -27,14 +29,30 @@
 	let hasTyped = $state(false);
 	let highlightedIndex = $state(0);
 
-	let selectedOption = $derived(options.find((option) => option.value === value));
+	let selectedOption: ComboboxOption | undefined = $derived(
+		options.find((option: ComboboxOption) => option.value === value)
+	);
 	let selectedLabel = $derived(selectedOption?.label ?? '');
 	let normalizedQuery = $derived(inputValue.trim().toLowerCase());
-	let filteredOptions = $derived(
+	let filteredOptions: ComboboxOption[] = $derived(
 		hasTyped && normalizedQuery
-			? options.filter((option) => option.label.toLowerCase().includes(normalizedQuery))
+			? options.filter((option: ComboboxOption) => option.label.toLowerCase().includes(normalizedQuery))
 			: options
 	);
+
+	onMount(() => {
+		function closeOtherComboboxes(event: Event) {
+			if ((event as CustomEvent<string>).detail !== id) {
+				open = false;
+			}
+		}
+
+		window.addEventListener('centavo-combobox-open', closeOtherComboboxes);
+
+		return () => {
+			window.removeEventListener('centavo-combobox-open', closeOtherComboboxes);
+		};
+	});
 
 	$effect(() => {
 		if (!open) {
@@ -51,6 +69,7 @@
 
 	function openList() {
 		if (disabled) return;
+		window.dispatchEvent(new CustomEvent('centavo-combobox-open', { detail: id }));
 		open = true;
 		inputValue = selectedLabel;
 		hasTyped = false;
@@ -97,9 +116,10 @@
 	}
 </script>
 
-<div class="relative">
+<div class="relative w-full">
 	<input
 		{id}
+		class="w-full"
 		role="combobox"
 		aria-autocomplete="list"
 		aria-expanded={open}
@@ -124,7 +144,7 @@
 		<div
 			id={`${id}-listbox`}
 			role="listbox"
-			class="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-2xl border bg-[var(--app-surface)] p-1 shadow-xl"
+			class="absolute z-60 mt-2 max-h-64 w-full overflow-auto rounded-2xl border bg-(--app-surface) p-1 shadow-xl"
 			style="border-color: var(--app-border)"
 		>
 			{#each filteredOptions as option, index}
@@ -133,7 +153,7 @@
 					role="option"
 					aria-selected={option.value === value}
 					class={`w-full rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-						index === highlightedIndex ? 'bg-black/[0.04]' : ''
+						index === highlightedIndex ? 'bg-black/4' : ''
 					}`}
 					type="button"
 					onmousedown={(event) => event.preventDefault()}

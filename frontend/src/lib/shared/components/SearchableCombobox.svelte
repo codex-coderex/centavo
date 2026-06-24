@@ -1,136 +1,175 @@
 <script lang="ts" module>
 	let nextComboboxId = 0;
-	let activeComboboxId = $state<string | null>(null);
 </script>
 
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { onMount } from 'svelte';
 
-	type Option = {
+	type ComboboxOption = {
 		value: string;
 		label: string;
 	};
 
 	let {
-		value = $bindable(),
-		options,
-		placeholder = 'Select...',
-		searchPlaceholder = 'Search...',
+		id = `combobox-${nextComboboxId++}`,
+		value = $bindable(''),
+		options = [],
+		placeholder = 'Select an option',
+		searchPlaceholder = 'Type to filter...',
 		disabled = false,
 		onChange
 	} = $props<{
+		id?: string;
 		value: string;
-		options: Option[];
+		options: ComboboxOption[];
 		placeholder?: string;
 		searchPlaceholder?: string;
 		disabled?: boolean;
 		onChange?: (value: string) => void;
 	}>();
 
-	const comboboxId = `combobox-${nextComboboxId++}`;
+	let open = $state(false);
+	let inputValue = $state('');
+	let hasTyped = $state(false);
+	let highlightedIndex = $state(0);
 
-	let inputEl: HTMLInputElement | undefined = $state();
-	let query = $state('');
-
-	let selected = $derived(options.find((option: Option) => option.value === value));
-	let open = $derived(activeComboboxId === comboboxId);
-	let filteredOptions = $derived(
-		options.filter((option: Option) => option.label.toLowerCase().includes(query.trim().toLowerCase()))
+	let selectedOption: ComboboxOption | undefined = $derived(
+		options.find((option: ComboboxOption) => option.value === value)
+	);
+	let selectedLabel = $derived(selectedOption?.label ?? '');
+	let normalizedQuery = $derived(inputValue.trim().toLowerCase());
+	let filteredOptions: ComboboxOption[] = $derived(
+		hasTyped && normalizedQuery
+			? options.filter((option: ComboboxOption) => option.label.toLowerCase().includes(normalizedQuery))
+			: options
 	);
 
-	function openCombobox() {
-		if (disabled) return;
-
-		query = '';
-		activeComboboxId = comboboxId;
-	}
-
-	function closeCombobox() {
-		if (activeComboboxId === comboboxId) {
-			activeComboboxId = null;
+	onMount(() => {
+		function closeOtherComboboxes(event: Event) {
+			if ((event as CustomEvent<string>).detail !== id) {
+				open = false;
+			}
 		}
 
-		query = '';
+		window.addEventListener('centavo-combobox-open', closeOtherComboboxes);
+
+		return () => {
+			window.removeEventListener('centavo-combobox-open', closeOtherComboboxes);
+		};
+	});
+
+	$effect(() => {
+		if (!open) {
+			hasTyped = false;
+			highlightedIndex = 0;
+		}
+	});
+
+	$effect(() => {
+		if (highlightedIndex >= filteredOptions.length) {
+			highlightedIndex = Math.max(filteredOptions.length - 1, 0);
+		}
+	});
+
+	function openList() {
+		if (disabled) return;
+
+		window.dispatchEvent(new CustomEvent('centavo-combobox-open', { detail: id }));
+		open = true;
+		inputValue = selectedLabel;
+		hasTyped = false;
 	}
 
-	function selectOption(nextValue: string) {
-		value = nextValue;
-		closeCombobox();
-		onChange?.(nextValue);
+	function selectOption(option: ComboboxOption) {
+		value = option.value;
+		inputValue = option.label;
+		open = false;
+		hasTyped = false;
+		onChange?.(option.value);
+	}
+
+	function handleInput(event: Event) {
+		inputValue = (event.currentTarget as HTMLInputElement).value;
+		hasTyped = true;
+		open = true;
+		highlightedIndex = 0;
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape') {
-			closeCombobox();
-			return;
+		if (disabled) return;
+
+		if (event.key === 'ArrowDown') {
+			event.preventDefault();
+			open = true;
+			highlightedIndex = Math.min(highlightedIndex + 1, Math.max(filteredOptions.length - 1, 0));
 		}
 
-		if (event.key === 'Enter' && filteredOptions[0]) {
+		if (event.key === 'ArrowUp') {
 			event.preventDefault();
-			selectOption(filteredOptions[0].value);
+			highlightedIndex = Math.max(highlightedIndex - 1, 0);
+		}
+
+		if (event.key === 'Enter' && open) {
+			event.preventDefault();
+			const option = filteredOptions[highlightedIndex];
+			if (option) selectOption(option);
+		}
+
+		if (event.key === 'Escape') {
+			open = false;
 		}
 	}
-
-	$effect(() => {
-		if (disabled) {
-			closeCombobox();
-		}
-	});
-
-	$effect(() => {
-		if (open && inputEl) {
-			tick().then(() => inputEl?.focus());
-		}
-	});
 </script>
 
-<div
-	class="searchable-combobox"
-	onfocusout={(event) => {
-		if (!event.currentTarget.contains(event.relatedTarget as Node)) {
-			closeCombobox();
-		}
-	}}
->
-	{#if open}
-		<div class="searchable-combobox-input-wrap">
-			<input
-				bind:this={inputEl}
-				bind:value={query}
-				class="combobox searchable-combobox-input"
-				placeholder={selected?.label ?? searchPlaceholder}
-				onkeydown={handleKeydown}
-			/>
-			<span class="text-muted">⌄</span>
-		</div>
-	{:else}
-		<button
-			class="combobox searchable-combobox-trigger"
-			type="button"
-			{disabled}
-			onclick={openCombobox}
-		>
-			<span>{selected?.label ?? placeholder}</span>
-			<span class="text-muted">⌄</span>
-		</button>
-	{/if}
+<div class="relative w-full">
+	<input
+		{id}
+		class="w-full"
+		role="combobox"
+		aria-autocomplete="list"
+		aria-expanded={open}
+		aria-controls={`${id}-listbox`}
+		aria-activedescendant={open && filteredOptions[highlightedIndex] ? `${id}-option-${highlightedIndex}` : undefined}
+		value={open ? inputValue : selectedLabel}
+		placeholder={selectedLabel || placeholder || searchPlaceholder}
+		disabled={disabled}
+		autocomplete="off"
+		onfocus={openList}
+		onclick={openList}
+		oninput={handleInput}
+		onkeydown={handleKeydown}
+		onblur={() => {
+			setTimeout(() => {
+				open = false;
+			}, 120);
+		}}
+	/>
 
-	{#if open}
-		<div class="searchable-combobox-menu">
-			<div class="searchable-combobox-options">
-				{#each filteredOptions as option}
-					<button
-						class:active={option.value === value}
-						class="searchable-combobox-option"
-						type="button"
-						onclick={() => selectOption(option.value)}
-					>
-						{option.label}
-					</button>
-				{:else}
-					<p class="text-muted px-3 py-2 text-xs">No matches.</p>
-				{/each}
-			</div>
+	{#if open && !disabled}
+		<div
+			id={`${id}-listbox`}
+			role="listbox"
+			class="absolute z-50 mt-2 max-h-64 w-full overflow-auto rounded-2xl border p-1 shadow-xl"
+			style="border-color: var(--app-border); background: var(--app-surface)"
+		>
+			{#each filteredOptions as option, index}
+				<button
+					id={`${id}-option-${index}`}
+					role="option"
+					aria-selected={option.value === value}
+					class={`w-full rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+						index === highlightedIndex ? 'bg-black/4' : ''
+					}`}
+					type="button"
+					onmousedown={(event) => event.preventDefault()}
+					onmouseenter={() => highlightedIndex = index}
+					onclick={() => selectOption(option)}
+				>
+					{option.label}
+				</button>
+			{:else}
+				<p class="text-muted px-3 py-2 text-sm">No matches.</p>
+			{/each}
 		</div>
 	{/if}
 </div>

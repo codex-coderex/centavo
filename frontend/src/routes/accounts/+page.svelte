@@ -320,7 +320,7 @@
 								<td class="px-6 py-4">
 									<span class="inline-flex items-center gap-2">
 										<span
-											class="h-2 w-2 flex-shrink-0 rounded-full"
+											class="h-2 w-2 shrink-0 rounded-full"
 											style="background:{typeColor(account.type)}"
 										></span>
 										{typeLabel(account.type)}

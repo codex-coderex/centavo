@@ -2,17 +2,18 @@
 	import type { Account } from '$lib/api/accounts';
 	import type { Budget, BudgetItem } from '$lib/api/budgets';
 	import type { Category, CategoryGroup, CategoryGroupType } from '$lib/api/categories';
+	import type { Transaction } from '$lib/api/transactions';
 	import SearchableCombobox from '$lib/shared/components/SearchableCombobox.svelte';
 
 	let {
-		mode = $bindable(),
+		transaction,
 		accounts,
 		budgets,
 		budgetItems,
 		categories,
 		categoryGroups,
+		mode = $bindable(),
 		accountId = $bindable(),
-		toAccountId = $bindable(),
 		categoryGroupId = $bindable(),
 		categoryId = $bindable(),
 		budgetId = $bindable(),
@@ -27,14 +28,14 @@
 		onClose,
 		onSubmit
 	} = $props<{
-		mode: CategoryGroupType;
+		transaction: Transaction;
 		accounts: Account[];
 		budgets: Budget[];
 		budgetItems: BudgetItem[];
 		categories: Category[];
 		categoryGroups: CategoryGroup[];
+		mode: CategoryGroupType;
 		accountId: number;
-		toAccountId: number;
 		categoryGroupId: number;
 		categoryId: number;
 		budgetId: string;
@@ -50,14 +51,13 @@
 		onSubmit: () => void | Promise<void>;
 	}>();
 
+	let isTransfer = $derived(transaction.transfer_id !== null && transaction.transfer_id !== undefined);
 	let categoryGroupsForMode = $derived(
 		categoryGroups.filter((group: CategoryGroup) => group.type === mode)
 	);
-
 	let categoriesForGroup = $derived(
 		categories.filter((category: Category) => category.group_id === categoryGroupId)
 	);
-
 	let budgetItemsForCategory = $derived(
 		mode === 'expense' && budgetId !== 'none'
 			? budgetItems.filter(
@@ -72,16 +72,16 @@
 			label: account.name
 		}))
 	);
-	let categoryGroupOptions = $derived(
-		categoryGroupsForMode.map((group: CategoryGroup) => ({
-			value: String(group.group_id),
-			label: group.name
-		}))
-	);
 	let categoryOptions = $derived(
 		categoriesForGroup.map((category: Category) => ({
 			value: String(category.category_id),
 			label: categoryName(category.category_id)
+		}))
+	);
+	let categoryGroupOptions = $derived(
+		categoryGroupsForMode.map((group: CategoryGroup) => ({
+			value: String(group.group_id),
+			label: group.name
 		}))
 	);
 	let budgetOptions = $derived([
@@ -101,18 +101,14 @@
 			categoryId = categoriesForGroup[0]?.category_id ?? 0;
 		}
 
-		if (
-			budgetItemId !== 'none'
-			&& !budgetItemsForCategory.some((item: BudgetItem) => String(item.budget_item_id) === budgetItemId)
-		) {
+		if (isTransfer || mode !== 'expense' || budgetId === 'none') {
 			budgetItemId = 'none';
+			return;
 		}
 
-		if (budgetId !== 'none') {
-			budgetItemId = budgetItemsForCategory[0]?.budget_item_id
-				? String(budgetItemsForCategory[0].budget_item_id)
-				: 'none';
-		}
+		budgetItemId = budgetItemsForCategory[0]?.budget_item_id
+			? String(budgetItemsForCategory[0].budget_item_id)
+			: 'none';
 	});
 
 	function sanitizeAmountInput(event: Event) {
@@ -137,13 +133,20 @@
 	>
 		<div class="flex items-start justify-between gap-4">
 			<div>
-				<p class="dashboard-eyebrow text-xs font-semibold uppercase tracking-widest">Add transaction</p>
-				<h2 class="mt-1 text-xl font-bold">New transaction</h2>
+				<p class="dashboard-eyebrow text-xs font-semibold uppercase tracking-widest">
+					{isTransfer ? 'Edit transfer' : 'Edit transaction'}
+				</p>
+				<h2 class="mt-1 text-xl font-bold">{transaction.payee ?? 'No payee'}</h2>
+				{#if isTransfer}
+					<p class="text-muted mt-1 text-sm">
+						Transfer account/category changes are locked. Edit amount, date, payee, and notes here.
+					</p>
+				{/if}
 			</div>
 			<button class="secondary-action" type="button" onclick={onClose}>Close</button>
 		</div>
 
-		<div class="mt-6 grid grid-cols-3 gap-2 rounded-full bg-[var(--app-surface-strong)] p-1">
+		<div class="mt-6 grid grid-cols-3 gap-2">
 			{#each [
 				{ value: 'expense', label: 'Expense' },
 				{ value: 'income', label: 'Income' },
@@ -152,6 +155,7 @@
 				<button
 					class={mode === option.value ? 'primary-action' : 'secondary-action'}
 					type="button"
+					disabled={isTransfer}
 					onclick={() => {
 						mode = option.value as CategoryGroupType;
 						budgetItemId = 'none';
@@ -163,36 +167,16 @@
 		</div>
 
 		<label class="mt-6 grid gap-2">
-			<span class="text-sm font-medium">Amount</span>
-			<input bind:value={amount} inputmode="decimal" placeholder="0.00" oninput={sanitizeAmountInput} />
-			<p class="text-muted text-xs">
-				Enter the amount without signs. {mode === 'expense' ? 'Expenses are saved as negative.' : mode === 'income' ? 'Income is saved as positive.' : 'Transfers create one negative and one positive transaction.'}
-			</p>
-		</label>
-
-		<label class="mt-4 grid gap-2">
-			<span class="text-sm font-medium">{mode === 'transfer' ? 'From account' : 'Account'}</span>
+			<span class="text-sm font-medium">Account</span>
 			<SearchableCombobox
 				value={String(accountId)}
 				options={accountOptions}
 				placeholder="Select an account"
 				searchPlaceholder="Search accounts..."
+				disabled={isTransfer}
 				onChange={(value) => accountId = Number(value)}
 			/>
 		</label>
-
-		{#if mode === 'transfer'}
-			<label class="mt-4 grid gap-2">
-				<span class="text-sm font-medium">To account</span>
-				<SearchableCombobox
-					value={String(toAccountId)}
-					options={accountOptions}
-					placeholder="Select an account"
-					searchPlaceholder="Search accounts..."
-					onChange={(value) => toAccountId = Number(value)}
-				/>
-			</label>
-		{/if}
 
 		<label class="mt-4 grid gap-2">
 			<span class="text-sm font-medium">Category group</span>
@@ -201,7 +185,7 @@
 				options={categoryGroupOptions}
 				placeholder="Select a category group"
 				searchPlaceholder="Search groups..."
-				disabled={categoryGroupsForMode.length === 0}
+				disabled={isTransfer || categoryGroupsForMode.length === 0}
 				onChange={(value) => categoryGroupId = Number(value)}
 			/>
 		</label>
@@ -213,7 +197,7 @@
 				options={categoryOptions}
 				placeholder="Select a category"
 				searchPlaceholder="Search categories..."
-				disabled={categoriesForGroup.length === 0}
+				disabled={isTransfer || categoriesForGroup.length === 0}
 				onChange={(value) => categoryId = Number(value)}
 			/>
 		</label>
@@ -226,8 +210,9 @@
 					options={budgetOptions}
 					placeholder="None"
 					searchPlaceholder="Search budgets..."
+					disabled={isTransfer}
 				/>
-				{#if budgetId !== 'none' && budgetItemsForCategory.length === 0}
+				{#if !isTransfer && budgetId !== 'none' && budgetItemsForCategory.length === 0}
 					<p class="text-muted text-xs">
 						This budget does not have an item for the selected category.
 					</p>
@@ -236,18 +221,26 @@
 		{/if}
 
 		<label class="mt-4 grid gap-2">
+			<span class="text-sm font-medium">{isTransfer ? 'Transfer amount' : 'Amount'}</span>
+			<input bind:value={amount} inputmode="decimal" placeholder="0.00" oninput={sanitizeAmountInput} />
+			<p class="text-muted text-xs">
+				Enter the amount without signs. {mode === 'expense' ? 'Expenses are saved as negative.' : mode === 'income' ? 'Income is saved as positive.' : 'Transfers update both sides of the transfer pair.'}
+			</p>
+		</label>
+
+		<label class="mt-4 grid gap-2">
 			<span class="text-sm font-medium">Transaction date</span>
 			<input bind:value={transactionDate} type="date" />
 		</label>
 
 		<label class="mt-4 grid gap-2">
-			<span class="text-sm font-medium">{mode === 'expense' ? 'Merchant' : 'Payee'}</span>
-			<input bind:value={payee} placeholder={mode === 'expense' ? 'Search merchants...' : 'Payee'} />
+			<span class="text-sm font-medium">Payee</span>
+			<input bind:value={payee} placeholder="Merchant or payee" />
 		</label>
 
 		<label class="mt-4 grid gap-2">
 			<span class="text-sm font-medium">Notes</span>
-			<textarea bind:value={notes} rows="3" placeholder="Add a note..."></textarea>
+			<textarea bind:value={notes} rows="3" placeholder="Optional notes"></textarea>
 		</label>
 
 		{#if error}
@@ -257,7 +250,7 @@
 		{/if}
 
 		<button class="primary-action mt-6 w-full" type="submit" disabled={saving}>
-			{saving ? 'Creating...' : 'Create transaction'}
+			{saving ? 'Saving...' : 'Save changes'}
 		</button>
 	</form>
 </div>

@@ -1,5 +1,12 @@
 <script lang="ts">
 	import type { CategoryGroupType } from '$lib/api/categories';
+	import SearchableCombobox from '$lib/shared/components/SearchableCombobox.svelte';
+
+	const categoryGroupTypeOptions = [
+		{ value: 'expense', label: 'Expense' },
+		{ value: 'income', label: 'Income' },
+		{ value: 'transfer', label: 'Transfer' }
+	];
 
 	let {
 		groupName = $bindable(),
@@ -41,11 +48,12 @@
 
 		<label class="mt-4 grid gap-2">
 			<span class="text-sm font-medium">Category group type</span>
-			<select class="combobox" bind:value={groupType}>
-				<option value="expense">Expense</option>
-				<option value="income">Income</option>
-				<option value="transfer">Transfer</option>
-			</select>
+			<SearchableCombobox
+				bind:value={groupType}
+				options={categoryGroupTypeOptions}
+				placeholder="Select a category group type"
+				searchPlaceholder="Search category group types..."
+			/>
 		</label>
 
 		{#if error}

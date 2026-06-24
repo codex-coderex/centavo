@@ -217,7 +217,7 @@
 					<div class="mt-4 flex flex-col gap-2.5">
 						{#each donutSegments as seg}
 							<div class="flex items-center gap-3">
-								<span class="h-2 w-2 flex-shrink-0 rounded-full" style="background:{seg.color}"></span>
+								<span class="h-2 w-2 shrink-0 rounded-full" style="background:{seg.color}"></span>
 								<span class="text-muted flex-1 text-xs font-medium">{seg.name}</span>
 								<span class="text-xs font-bold">{fmt(seg.total)}</span>
 								<span class="text-muted w-12 text-right text-xs">
@@ -255,7 +255,7 @@
 										{fmtDate(txn.transaction_date)}
 									</p>
 								</div>
-								<span class="flex-shrink-0 text-sm font-bold tabular-nums {txn.amount_minor >= 0 ? 'money-positive' : 'money-negative'}">
+								<span class="shrink-0 text-sm font-bold tabular-nums {txn.amount_minor >= 0 ? 'money-positive' : 'money-negative'}">
 									{fmtSigned(txn.amount_minor)}
 								</span>
 							</div>
@@ -298,7 +298,7 @@
 										</div>
 										<div class="h-1 overflow-hidden rounded-full" style="background: var(--app-soft)">
 											<div
-												class="h-full rounded-full transition-all duration-700 {p >= 100 ? 'bg-[var(--app-red)]' : p >= 85 ? 'bg-[var(--app-gold)]' : 'bg-[var(--app-green)]'}"
+												class="h-full rounded-full transition-all duration-700 {p >= 100 ? 'bg-(--app-red)' : p >= 85 ? 'bg-(--app-gold)' : 'bg-(--app-green)'}"
 												style="width:{p}%"
 											></div>
 										</div>
