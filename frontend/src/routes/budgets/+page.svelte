@@ -12,9 +12,6 @@
 		type BudgetPeriod
 	} from '$lib/api/budgets';
 	import { getAllCategories, type Category } from '$lib/api/categories';
-	
-	// ---> NEW: Import your new modal component
-	import CategoryModal from './CategoryModal.svelte'; 
 
 	const userId = 1;
 
@@ -36,9 +33,6 @@
 
 	let itemCategoryId: number | null = $state(null);
 	let plannedAmount = $state('');
-
-	// ---> NEW: State to control when the modal shows
-	let showCategoryModal = $state(false); 
 
 	const periods: { value: BudgetPeriod; label: string }[] = [
 		{ value: 'weekly', label: 'Weekly' },
@@ -240,16 +234,6 @@
 		}
 	}
 
-	// ---> NEW: Helper to refresh categories when the modal creates one
-	async function handleCategoryCreated() {
-		try {
-			categories = await getAllCategories(userId);
-			notice = 'New category added successfully.';
-		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
-		}
-	}
-
 	onMount(loadBudgets);
 </script>
 
@@ -303,27 +287,17 @@
 					/>
 				</label>
 
-				<div class="mt-5 grid gap-2">
-					<div class="flex items-center justify-between">
-						<label for="category-select" class="text-sm font-medium text-slate-300">Category</label>
-						<button
-							type="button"
-							class="text-xs font-medium text-indigo-400 transition-colors hover:text-indigo-300"
-							onclick={() => showCategoryModal = true}
-						>
-							+ New category
-						</button>
-					</div>
+				<label class="mt-4 grid gap-2">
+					<span class="text-sm font-medium text-slate-300">Period</span>
 					<select
-						id="category-select"
 						class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400"
-						bind:value={itemCategoryId}
+						bind:value={period}
 					>
-						{#each categories as category}
-							<option value={category.category_id}>{category.name}</option>
+						{#each periods as option}
+							<option value={option.value}>{option.label}</option>
 						{/each}
 					</select>
-				</div>
+				</label>
 
 				<div class="mt-4 grid gap-4 sm:grid-cols-2">
 					<label class="grid gap-2">
@@ -506,9 +480,4 @@
 			
 		</div>
 	</div>
-	<CategoryModal 
-        bind:isOpen={showCategoryModal} 
-        userId={userId} 
-        onCreated={handleCategoryCreated} 
-    />
 </div>
