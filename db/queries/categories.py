@@ -20,6 +20,16 @@ def get_category_groups(user_id: int):
         return [dict(row._mapping) for row in result]
 
 
+def get_all_category_groups(user_id: int):
+    with get_conn() as conn:
+        result = conn.execute(
+            select(category_group)
+            .where(category_group.c.user_id == user_id)
+            .order_by(category_group.c.type, category_group.c.name)
+        )
+        return [dict(row._mapping) for row in result]
+
+
 def get_category_group(group_id: int):
     with get_conn() as conn:
         result = conn.execute(
@@ -48,6 +58,17 @@ def get_all_categories(user_id: int):
             .where(category_group.c.user_id == user_id)
             .where(category_group.c.is_active.is_(True))
             .where(category.c.is_active.is_(True))
+            .order_by(category_group.c.type, category.c.name)
+        )
+        return [dict(row._mapping) for row in result]
+
+
+def get_all_categories_for_user(user_id: int):
+    with get_conn() as conn:
+        result = conn.execute(
+            select(category)
+            .join(category_group, category.c.group_id == category_group.c.group_id)
+            .where(category_group.c.user_id == user_id)
             .order_by(category_group.c.type, category.c.name)
         )
         return [dict(row._mapping) for row in result]

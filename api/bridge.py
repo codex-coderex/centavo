@@ -96,11 +96,17 @@ class FinanceApi:
     def get_category_groups(self, user_id):
         return categories.get_category_groups(user_id)
 
+    def get_all_category_groups(self, user_id):
+        return categories.get_all_category_groups(user_id)
+
     def get_categories(self, group_id):
         return categories.get_categories(group_id)
 
     def get_all_categories(self, user_id):
         return categories.get_all_categories(user_id)
+
+    def get_all_categories_for_user(self, user_id):
+        return categories.get_all_categories_for_user(user_id)
 
     def create_category_group(self, user_id, name, type):
         return categories.create_category_group(user_id, name, type)

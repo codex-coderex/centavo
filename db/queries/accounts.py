@@ -25,6 +25,22 @@ def get_account(account_id: int):
         return dict(row._mapping) if row else None
 
 
+def get_active_account_by_name(user_id: int, name: str, exclude_account_id: int | None = None):
+    with get_conn() as conn:
+        stmt = (
+            select(account)
+            .where(account.c.user_id == user_id)
+            .where(account.c.name == name)
+            .where(account.c.status == "active")
+        )
+
+        if exclude_account_id is not None:
+            stmt = stmt.where(account.c.account_id != exclude_account_id)
+
+        row = conn.execute(stmt).first()
+        return dict(row._mapping) if row else None
+
+
 def create_account(
     user_id: int,
     name: str,

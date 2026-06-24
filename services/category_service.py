@@ -11,12 +11,20 @@ def get_category_groups(user_id: int):
     return categories_q.get_category_groups(user_id)
 
 
+def get_all_category_groups(user_id: int):
+    return categories_q.get_all_category_groups(user_id)
+
+
 def get_categories(group_id: int):
     return categories_q.get_categories_by_group(group_id, active_only=True)
 
 
 def get_all_categories(user_id: int):
     return categories_q.get_all_categories(user_id)
+
+
+def get_all_categories_for_user(user_id: int):
+    return categories_q.get_all_categories_for_user(user_id)
 
 
 def create_category_group(user_id: int, name: str, type: str):

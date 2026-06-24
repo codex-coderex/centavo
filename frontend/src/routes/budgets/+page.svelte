@@ -9,7 +9,7 @@
 		getBudgets,
 		type Budget,
 		type BudgetItem,
-		type BudgetPeriod
+		type BudgetPeriodType
 	} from '$lib/api/budgets';
 	import { getAllCategories, type Category } from '$lib/api/categories';
 
@@ -27,14 +27,14 @@
 	let notice = $state('');
 
 	let name = $state('');
-	let period: BudgetPeriod = $state('monthly');
+	let period: BudgetPeriodType = $state('monthly');
 	let startDate = $state(new Date().toISOString().slice(0, 10));
 	let endDate = $state('');
 
 	let itemCategoryId: number | null = $state(null);
 	let plannedAmount = $state('');
 
-	const periods: { value: BudgetPeriod; label: string }[] = [
+	const periods: { value: BudgetPeriodType; label: string }[] = [
 		{ value: 'weekly', label: 'Weekly' },
 		{ value: 'monthly', label: 'Monthly' },
 		{ value: 'quarterly', label: 'Quarterly' },
@@ -137,7 +137,7 @@
 			const result = await createBudget({
 				user_id: userId,
 				name: name.trim(),
-				period,
+				period_type: period,
 				start_date: startDate,
 				end_date: endDate || null
 			});
@@ -398,7 +398,7 @@
 								>
 									<p class="font-medium text-slate-100">{budget.name}</p>
 									<p class="mt-1 text-xs text-slate-400">
-										{budget.period} · {formatDate(budget.start_date)} to {formatDate(budget.end_date)}
+										{budget.period_type} · {formatDate(budget.start_date)} to {formatDate(budget.end_date)}
 									</p>
 								</button>
 

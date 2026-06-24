@@ -307,7 +307,7 @@ def update_transaction(
         kwargs["category_id"] = category_id
 
     if budget_item_id is not None:
-        kwargs["budget_item_id"] = budget_item_id
+        kwargs["budget_item_id"] = None if budget_item_id == 0 else budget_item_id
 
     if payee is not None:
         kwargs["payee"] = payee

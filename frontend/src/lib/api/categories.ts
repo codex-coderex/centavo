@@ -23,12 +23,20 @@ export function getCategoryGroups(userId: number) {
 	return callApi<CategoryGroup[]>('get_category_groups', userId);
 }
 
+export function getAllCategoryGroups(userId: number) {
+	return callApi<CategoryGroup[]>('get_all_category_groups', userId);
+}
+
 export function getCategories(groupId: number) {
 	return callApi<Category[]>('get_categories', groupId);
 }
 
 export function getAllCategories(userId: number) {
 	return callApi<Category[]>('get_all_categories', userId);
+}
+
+export function getAllCategoriesForUser(userId: number) {
+	return callApi<Category[]>('get_all_categories_for_user', userId);
 }
 
 export function createCategoryGroup(payload: {

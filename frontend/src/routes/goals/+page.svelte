@@ -1,12 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getAccounts, type Account } from '$lib/api/accounts';
 	import { completeGoal, createGoal, getGoals, type Goal } from '$lib/api/goals';
 
 	const userId = 1;
 
 	let goals: Goal[] = $state([]);
-	let accounts: Account[] = $state([]);
 
 	let loading = $state(true);
 	let saving = $state(false);
@@ -15,7 +13,6 @@
 
 	let name = $state('');
 	let targetAmount = $state('');
-	let accountId: number | null = $state(null);
 	let targetDate = $state('');
 
 	function formatMoney(amountMinor: number) {
@@ -34,27 +31,13 @@
 		});
 	}
 
-	function accountName(id: number) {
-		return accounts.find((account) => account.account_id === id)?.name ?? `Account ${id}`;
-	}
-
 	async function loadPage() {
 		loading = true;
 		error = '';
 		notice = '';
 
 		try {
-			const [goalRows, accountRows] = await Promise.all([
-				getGoals(userId),
-				getAccounts(userId)
-			]);
-
-			goals = goalRows;
-			accounts = accountRows;
-
-			if (accountId === null && accountRows.length > 0) {
-				accountId = accountRows[0].account_id;
-			}
+			goals = await getGoals(userId);
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -71,11 +54,6 @@
 			return;
 		}
 
-		if (accountId === null) {
-			error = 'Create an account first.';
-			return;
-		}
-
 		saving = true;
 
 		try {
@@ -83,7 +61,6 @@
 				user_id: userId,
 				name: name.trim(),
 				target_amount: targetAmount,
-				account_id: accountId,
 				target_date: targetDate || null
 			});
 
@@ -155,15 +132,6 @@
 			</label>
 
 			<label class="mt-4 grid gap-2">
-				<span class="text-sm font-medium text-slate-300">Account</span>
-				<select class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400" bind:value={accountId}>
-					{#each accounts as account}
-						<option value={account.account_id}>{account.name}</option>
-					{/each}
-				</select>
-			</label>
-
-			<label class="mt-4 grid gap-2">
 				<span class="text-sm font-medium text-slate-300">Target date</span>
 				<input class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400" type="date" bind:value={targetDate} />
 			</label>
@@ -171,7 +139,7 @@
 			<button
 				class="mt-5 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
 				type="submit"
-				disabled={saving || accounts.length === 0}
+				disabled={saving}
 			>
 				{saving ? 'Creating...' : 'Create goal'}
 			</button>
@@ -191,7 +159,7 @@
 							<div>
 								<p class="font-medium text-slate-100">{goal.name}</p>
 								<p class="mt-1 text-xs text-slate-400">
-									{formatMoney(goal.target_amount_minor)} · {accountName(goal.account_id)} · {formatDate(goal.target_date)}
+									{formatMoney(goal.target_amount_minor)} · {formatDate(goal.target_date)}
 								</p>
 								<span class="mt-2 inline-block rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-300">
 									{goal.status}

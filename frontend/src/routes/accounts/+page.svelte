@@ -4,43 +4,62 @@
 		archiveAccount,
 		createAccount,
 		getAccounts,
-		type Account
+		updateAccount,
+		type Account,
+		type AccountType
 	} from '$lib/api/accounts';
+	import AccountModal, { type AccountTypeOption } from './AccountModal.svelte';
+	import ArchivedAccountsModal from './ArchivedAccountsModal.svelte';
+	import EditAccountModal from './EditAccountModal.svelte';
 
 	const userId = 1;
 
 	let accounts: Account[] = $state([]);
+	let archivedAccounts: Account[] = $state([]);
 	let loading = $state(true);
 	let saving = $state(false);
+	let restoringId: number | null = $state(null);
 	let error = $state('');
+	let modalError = $state('');
+	let editModalError = $state('');
+	let archivedModalError = $state('');
 	let notice = $state('');
+	let showAccountModal = $state(false);
+	let showEditModal = $state(false);
+	let showArchivedModal = $state(false);
+	let editReturnToArchived = $state(false);
+	let editingAccount: Account | null = $state(null);
 
 	let name = $state('');
-	let type = $state('checking');
+	let type: AccountType = $state('checking');
+	let openingBalance = $state('');
+	let editName = $state('');
+	let editBalance = $state('');
 
-	const accountTypes = [
+	const accountTypes: AccountTypeOption[] = [
 		{ value: 'checking', label: 'Checking' },
 		{ value: 'savings', label: 'Savings' },
 		{ value: 'cash', label: 'Cash' },
-		{ value: 'credit', label: 'Credit Card' },
-		{ value: 'investment', label: 'Investment' },
+		{ value: 'credit_card', label: 'Credit Card' },
+		{ value: 'line_of_credit', label: 'Line of Credit' },
 		{ value: 'loan', label: 'Loan' },
-		{ value: 'other', label: 'Other' }
+		{ value: 'mortgage', label: 'Mortgage' },
+		{ value: 'investment', label: 'Investment' },
+		{ value: 'other_asset', label: 'Other Asset' },
+		{ value: 'other_liability', label: 'Other Liability' }
 	];
 
-	// Color accents per account type — falls back to slate for any type
-	// not listed here, so it won't break if "bank"/"ewallet" end up being
-	// the real values instead of "checking"/"cash".
 	const TYPE_COLORS: Record<string, string> = {
 		checking: '#6366f1',
-		bank: '#6366f1',
 		savings: '#10b981',
 		cash: '#f59e0b',
-		credit: '#f43f5e',
-		investment: '#8b5cf6',
+		credit_card: '#f43f5e',
+		line_of_credit: '#fb7185',
 		loan: '#f97316',
-		ewallet: '#06b6d4',
-		other: '#64748b'
+		mortgage: '#ea580c',
+		investment: '#8b5cf6',
+		other_asset: '#06b6d4',
+		other_liability: '#64748b'
 	};
 
 	function typeColor(t: string) {
@@ -51,21 +70,88 @@
 		return accountTypes.find((a) => a.value === t)?.label ?? t;
 	}
 
-	// NOTE: assumes Account has a `balance_minor` field (centavos, like
-	// amount_minor elsewhere in the app). If that field doesn't exist yet
-	// on the type/backend, this will need a small follow-up.
 	function fmtBalance(minor: number | undefined | null) {
 		if (minor == null) return '—';
 		return '₱' + (minor / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 	}
 
+	function accountBalance(account: Account) {
+		return account.current_balance_minor ?? account.opening_balance_minor;
+	}
+
+	function openingBalanceForCurrentBalance(account: Account, currentBalance: string) {
+		const desiredCurrentMinor = Math.round(Number(currentBalance || 0) * 100);
+		const transactionTotalMinor = accountBalance(account) - account.opening_balance_minor;
+
+		return ((desiredCurrentMinor - transactionTotalMinor) / 100).toFixed(2);
+	}
+
+	function resetAccountModal() {
+		name = '';
+		type = 'checking';
+		openingBalance = '';
+		modalError = '';
+	}
+
+	function openAccountModal() {
+		error = '';
+		notice = '';
+		resetAccountModal();
+		showAccountModal = true;
+	}
+
+	function closeAccountModal() {
+		showAccountModal = false;
+		modalError = '';
+		saving = false;
+	}
+
+	function openEditModal(account: Account, returnToArchived = false) {
+		error = '';
+		notice = '';
+		editModalError = '';
+		editReturnToArchived = returnToArchived;
+		editingAccount = account;
+		editName = account.name;
+		editBalance = (accountBalance(account) / 100).toFixed(2);
+		showArchivedModal = false;
+		showEditModal = true;
+	}
+
+	function closeEditModal() {
+		showEditModal = false;
+		editModalError = '';
+		editingAccount = null;
+		saving = false;
+		if (editReturnToArchived) {
+			showArchivedModal = true;
+			editReturnToArchived = false;
+		}
+	}
+
+	function openArchivedModal() {
+		archivedModalError = '';
+		showArchivedModal = true;
+	}
+
+	function closeArchivedModal() {
+		showArchivedModal = false;
+		archivedModalError = '';
+		restoringId = null;
+	}
+
 	async function loadAccounts() {
 		loading = true;
 		error = '';
-		notice = '';
 
 		try {
-			accounts = await getAccounts(userId);
+			const [activeRows, allRows] = await Promise.all([
+				getAccounts(userId),
+				getAccounts(userId, false)
+			]);
+
+			accounts = activeRows;
+			archivedAccounts = allRows.filter((account) => account.status === 'archived');
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -74,11 +160,11 @@
 	}
 
 	async function submitAccount() {
-		error = '';
+		modalError = '';
 		notice = '';
 
 		if (!name.trim()) {
-			error = 'Account name is required.';
+			modalError = 'Account name is required.';
 			return;
 		}
 
@@ -88,15 +174,47 @@
 			await createAccount({
 				user_id: userId,
 				name: name.trim(),
-				type
+				type,
+				opening_balance: openingBalance || 0
 			});
 
-			name = '';
-			type = 'checking';
 			notice = 'Account created.';
+			closeAccountModal();
 			await loadAccounts();
 		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
+			modalError = err instanceof Error ? err.message : String(err);
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function submitEditAccount() {
+		editModalError = '';
+		notice = '';
+
+		if (editingAccount === null) {
+			editModalError = 'Account does not exist.';
+			return;
+		}
+
+		if (!editName.trim()) {
+			editModalError = 'Account name is required.';
+			return;
+		}
+
+		saving = true;
+
+		try {
+			await updateAccount(editingAccount.account_id, {
+				name: editName.trim(),
+				opening_balance: openingBalanceForCurrentBalance(editingAccount, editBalance)
+			});
+
+			notice = 'Account updated.';
+			closeEditModal();
+			await loadAccounts();
+		} catch (err) {
+			editModalError = err instanceof Error ? err.message : String(err);
 		} finally {
 			saving = false;
 		}
@@ -121,146 +239,169 @@
 		}
 	}
 
+	async function restore(account: Account) {
+		archivedModalError = '';
+		notice = '';
+		restoringId = account.account_id;
+
+		try {
+			await updateAccount(account.account_id, { status: 'active' });
+			notice = 'Account enabled.';
+			await loadAccounts();
+		} catch (err) {
+			archivedModalError = err instanceof Error ? err.message : String(err);
+		} finally {
+			restoringId = null;
+		}
+	}
+
 	onMount(loadAccounts);
 </script>
 
 <div class="flex flex-col gap-8 p-8">
-
-	<!-- Header — matches Dashboard's eyebrow + title pattern -->
-	<div class="flex items-end justify-between">
+	<div class="flex flex-wrap items-end justify-between gap-4">
 		<div>
-			<p class="text-xs font-semibold uppercase tracking-widest text-slate-500">Manage</p>
-			<h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-50">Accounts</h1>
-			<p class="mt-2 text-sm text-slate-400">Create and manage local accounts.</p>
+			<p class="dashboard-eyebrow text-xs font-semibold uppercase tracking-widest">Manage</p>
+			<h1 class="mt-1 text-3xl font-bold tracking-tight">Accounts</h1>
+			<p class="text-muted mt-2 text-sm">Create and manage local accounts.</p>
 		</div>
-		<div class="rounded-full border border-slate-800/60 bg-slate-900/80 px-3 py-1 text-xs font-medium text-slate-400">
-			{accounts.length} active
+
+		<div class="flex flex-wrap justify-end gap-2">
+			<button class="secondary-action" type="button" onclick={openArchivedModal}>
+				Archived accounts ({archivedAccounts.length})
+			</button>
+			<button class="primary-action" type="button" onclick={openAccountModal}>Add account</button>
 		</div>
 	</div>
 
 	{#if error}
-		<div class="rounded-2xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200">
+		<div class="rounded-2xl border p-4 text-sm money-negative" style="border-color: rgba(189, 74, 63, 0.3); background: rgba(189, 74, 63, 0.08)">
 			{error}
 		</div>
 	{/if}
 
 	{#if notice}
-		<div class="rounded-2xl border border-emerald-500/30 bg-emerald-950/30 p-4 text-sm text-emerald-200">
+		<div class="rounded-2xl border p-4 text-sm money-positive" style="border-color: rgba(47, 143, 107, 0.3); background: rgba(47, 143, 107, 0.08)">
 			{notice}
 		</div>
 	{/if}
 
-	<div class="grid gap-4 xl:grid-cols-[380px_1fr]">
-
-		<!-- New account form -->
-		<form
-			class="rounded-2xl border border-slate-800/60 bg-slate-900/80 p-6"
-			onsubmit={(event) => {
-				event.preventDefault();
-				submitAccount();
-			}}
-		>
-			<p class="text-sm font-semibold text-slate-100">New account</p>
-			<p class="mt-1 text-xs text-slate-500">
-				Add cash, bank, credit, loan, or investment accounts.
-			</p>
-
-			<label class="mt-5 grid gap-2">
-				<span class="text-sm font-medium text-slate-300">Account name</span>
-				<input
-					class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-indigo-400"
-					bind:value={name}
-					placeholder="Checking, Cash, Savings"
-				/>
-			</label>
-
-			<label class="mt-4 grid gap-2">
-				<span class="text-sm font-medium text-slate-300">Account type</span>
-				<select
-					class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400"
-					bind:value={type}
-				>
-					{#each accountTypes as accountType}
-						<option value={accountType.value}>{accountType.label}</option>
-					{/each}
-				</select>
-			</label>
-
-			<button
-				class="mt-5 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-				type="submit"
-				disabled={saving}
-			>
-				{saving ? 'Creating...' : 'Create account'}
-			</button>
-		</form>
-
-		<!-- Active accounts -->
-		<div class="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/80">
-			<div class="border-b border-slate-800/60 px-6 py-5">
-				<p class="text-sm font-semibold text-slate-100">Active accounts</p>
-				<p class="mt-1 text-xs text-slate-500">Archived accounts are hidden from this list.</p>
+	<div class="dashboard-card overflow-hidden">
+		<div class="flex flex-wrap items-center justify-between gap-4 border-b px-6 py-5" style="border-color: var(--app-border)">
+			<div>
+				<p class="text-sm font-semibold">Active accounts</p>
+				<p class="text-muted mt-1 text-xs">Archived accounts are hidden from this list.</p>
 			</div>
 
-			{#if loading}
-				<p class="px-6 py-12 text-center text-sm text-slate-600">Loading accounts...</p>
-			{:else}
-				<div class="overflow-x-auto">
-					<table class="w-full text-left text-sm">
-						<thead class="text-[11px] font-bold uppercase tracking-widest text-slate-500">
-							<tr>
-								<th class="px-6 py-3">Name</th>
-								<th class="px-6 py-3">Type</th>
-								<th class="px-6 py-3">Balance</th>
-								<th class="px-6 py-3">Status</th>
-								<th class="px-6 py-3 text-right">Actions</th>
-							</tr>
-						</thead>
+			<span class="pill">{accounts.length} active</span>
+		</div>
 
-						<tbody>
-							{#each accounts as account}
-								<tr class="border-t border-slate-800/60">
-									<td class="px-6 py-4 font-medium text-slate-100">
-										{account.name}
-									</td>
-									<td class="px-6 py-4 text-slate-300">
-										<span class="inline-flex items-center gap-2">
-											<span
-												class="h-2 w-2 flex-shrink-0 rounded-full"
-												style="background:{typeColor(account.type)}"
-											></span>
-											{typeLabel(account.type)}
-										</span>
-									</td>
-									<td class="px-6 py-4 font-semibold tabular-nums text-slate-100">
-										{fmtBalance(account.balance_minor)}
-									</td>
-									<td class="px-6 py-4">
-										<span class="rounded-full bg-emerald-950 px-2 py-1 text-xs text-emerald-300">
-											{account.status}
-										</span>
-									</td>
-									<td class="px-6 py-4 text-right">
+		{#if loading}
+			<p class="text-muted px-6 py-12 text-center text-sm">Loading accounts...</p>
+		{:else}
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-sm">
+					<thead class="text-muted text-[11px] font-bold uppercase tracking-widest">
+						<tr>
+							<th class="px-6 py-3">Name</th>
+							<th class="px-6 py-3">Type</th>
+							<th class="px-6 py-3">Balance</th>
+							<th class="px-6 py-3">Status</th>
+							<th class="px-6 py-3 text-right">Actions</th>
+						</tr>
+					</thead>
+
+					<tbody>
+						{#each accounts as account}
+							<tr class="border-t" style="border-color: var(--app-border)">
+								<td class="px-6 py-4 font-medium">
+									{account.name}
+								</td>
+								<td class="px-6 py-4">
+									<span class="inline-flex items-center gap-2">
+										<span
+											class="h-2 w-2 flex-shrink-0 rounded-full"
+											style="background:{typeColor(account.type)}"
+										></span>
+										{typeLabel(account.type)}
+									</span>
+								</td>
+								<td class="px-6 py-4 font-semibold tabular-nums">
+									{fmtBalance(accountBalance(account))}
+								</td>
+								<td class="px-6 py-4">
+									<span class="pill">{account.status}</span>
+								</td>
+								<td class="px-6 py-4 text-right">
+									<div class="flex justify-end gap-2">
 										<button
-											class="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-950/40"
+											class="secondary-action"
+											type="button"
+											onclick={() => openEditModal(account)}
+										>
+											Edit
+										</button>
+										<button
+											class="danger-action"
 											type="button"
 											onclick={() => archive(account)}
 										>
 											Archive
 										</button>
-									</td>
-								</tr>
-							{:else}
-								<tr>
-									<td class="px-6 py-12 text-center text-sm text-slate-600" colspan="5">
-										No accounts yet. Create one to get started.
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			{/if}
-		</div>
+									</div>
+								</td>
+							</tr>
+						{:else}
+							<tr>
+								<td class="text-muted px-6 py-12 text-center text-sm" colspan="5">
+									No accounts yet. Create one to get started.
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	</div>
 </div>
+
+{#if showAccountModal}
+	<AccountModal
+		bind:name
+		bind:type
+		bind:openingBalance
+		{accountTypes}
+		error={modalError}
+		{saving}
+		onClose={closeAccountModal}
+		onSubmit={submitAccount}
+	/>
+{/if}
+
+{#if showEditModal && editingAccount}
+	<EditAccountModal
+		account={editingAccount}
+		bind:name={editName}
+		bind:balance={editBalance}
+		error={editModalError}
+		{saving}
+		{fmtBalance}
+		{accountBalance}
+		onClose={closeEditModal}
+		onSubmit={submitEditAccount}
+	/>
+{/if}
+
+{#if showArchivedModal}
+	<ArchivedAccountsModal
+		accounts={archivedAccounts}
+		error={archivedModalError}
+		{restoringId}
+		{typeLabel}
+		{fmtBalance}
+		{accountBalance}
+		onClose={closeArchivedModal}
+		onEdit={(account) => openEditModal(account, true)}
+		onRestore={restore}
+	/>
+{/if}

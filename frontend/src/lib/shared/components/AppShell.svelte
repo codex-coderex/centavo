@@ -1,44 +1,47 @@
 <script lang="ts">
+	import accountsIcon from '$lib/assets/accounts.svg';
+	import budgetsIcon from '$lib/assets/budgets.svg';
+	import goalsIcon from '$lib/assets/goals.svg';
+	import homeIcon from '$lib/assets/home.svg';
+	import recurringIcon from '$lib/assets/recurring.svg';
+	import settingsIcon from '$lib/assets/settings.svg';
+	import transactionsIcon from '$lib/assets/transactions.svg';
+
 	let { children } = $props();
+
+	const navItems = [
+		{ href: '/', label: 'Dashboard', icon: homeIcon },
+		{ href: '/accounts', label: 'Accounts', icon: accountsIcon },
+		{ href: '/transactions', label: 'Transactions', icon: transactionsIcon },
+		{ href: '/budgets', label: 'Budgets', icon: budgetsIcon },
+		{ href: '/goals', label: 'Goals', icon: goalsIcon },
+		{ href: '/recurring', label: 'Recurring', icon: recurringIcon },
+		{ href: '/settings', label: 'Settings', icon: settingsIcon },
+	];
 </script>
 
-<div class="min-h-screen bg-slate-950 text-slate-100">
+<div class="app-shell">
 	<div class="flex min-h-screen">
-		<aside class="w-64 border-r border-slate-800 bg-slate-950 px-4 py-5">
-			<div class="mb-8">
-				<p class="text-lg font-bold">Centavo</p>
-				<p class="text-xs text-slate-500">Offline finance</p>
+		<aside class="app-sidebar px-4 py-5">
+			<div class="mb-8 flex items-center gap-3">
+				<div class="app-brand-mark">C</div>
+				<div>
+					<p class="text-lg font-bold leading-tight">Centavo</p>
+					<p class="text-xs" style="color: var(--app-muted)">Offline finance</p>
+				</div>
 			</div>
 
 			<nav class="space-y-1 text-sm">
-				<a class="block rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-900 hover:text-white" href="/">
-					Dashboard
-				</a>
-				<a class="block rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-900 hover:text-white" href="/accounts">
-					Accounts
-				</a>
-				<a class="block rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-900 hover:text-white" href="/transactions">
-					Transactions
-				</a>
-				<a class="block rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-900 hover:text-white" href="/categories">
-					Categories
-				</a>
-				<a class="block rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-900 hover:text-white" href="/budgets">
-					Budgets
-				</a>
-				<a class="block rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-900 hover:text-white" href="/goals">
-					Goals
-				</a>
-				<a class="block rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-900 hover:text-white" href="/recurring">
-					Recurring
-				</a>
-				<a class="block rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-900 hover:text-white" href="/settings">
-					Settings
-				</a>
+				{#each navItems as item}
+					<a class="app-nav-link" href={item.href}>
+						<img class="app-nav-icon" src={item.icon} alt="" aria-hidden="true" />
+						<span>{item.label}</span>
+					</a>
+				{/each}
 			</nav>
 		</aside>
 
-		<main class="flex-1 overflow-auto">
+		<main class="app-main">
 			{@render children()}
 		</main>
 	</div>

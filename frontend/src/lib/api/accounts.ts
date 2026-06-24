@@ -1,19 +1,31 @@
 import { callApi } from './client';
 
 export type AccountStatus = 'active' | 'archived';
+export type AccountType =
+	| 'checking'
+	| 'savings'
+	| 'cash'
+	| 'credit_card'
+	| 'line_of_credit'
+	| 'loan'
+	| 'mortgage'
+	| 'investment'
+	| 'other_asset'
+	| 'other_liability';
 
 export type Account = {
 	account_id: number;
 	user_id: number;
 	name: string;
-	type: string;
+	type: AccountType;
 	opening_balance_minor: number;
+	current_balance_minor: number;
 	created_at: string;
 	status: AccountStatus;
 };
 
-export function getAccounts(userId: number) {
-	return callApi<Account[]>('get_accounts', userId);
+export function getAccounts(userId: number, activeOnly = true) {
+	return callApi<Account[]>('get_accounts', userId, activeOnly);
 }
 
 export function getAccount(accountId: number) {
@@ -23,7 +35,7 @@ export function getAccount(accountId: number) {
 export function createAccount(payload: {
 	user_id: number;
 	name: string;
-	type: string;
+	type: AccountType;
 	opening_balance?: number | string;
 }) {
 	return callApi<{ account_id: number }>(
@@ -39,7 +51,7 @@ export function updateAccount(
 	accountId: number,
 	payload: {
 		name?: string;
-		type?: string;
+		type?: AccountType;
 		opening_balance?: number | string | null;
 		status?: AccountStatus;
 	} = {}

@@ -3,12 +3,12 @@
 	import { getAccounts, type Account } from '$lib/api/accounts';
 	import { getAllCategories, type Category } from '$lib/api/categories';
 	import {
-		createRecurring,
-		deactivateRecurring,
+		createRecurringRule,
+		deactivateRecurringRule,
 		generateTransaction,
-		getRecurring,
-		pauseRecurring,
-		resumeRecurring,
+		getRecurringRules,
+		pauseRecurringRule,
+		resumeRecurringRule,
 		type FrequencyUnit,
 		type RecurringRule
 	} from '$lib/api/recurring';
@@ -26,7 +26,7 @@
 
 	let accountId: number | null = $state(null);
 	let categoryId: number | null = $state(null);
-	let merchant = $state('');
+	let name = $state('');
 	let amount = $state('');
 	let interval = $state(1);
 	let frequencyUnit: FrequencyUnit = $state('month');
@@ -72,7 +72,7 @@
 
 		try {
 			const [recurringRows, accountRows, categoryRows] = await Promise.all([
-				getRecurring(userId),
+				getRecurringRules(userId),
 				getAccounts(userId),
 				getAllCategories(userId)
 			]);
@@ -127,18 +127,19 @@
 		saving = true;
 
 		try {
-			await createRecurring({
+			await createRecurringRule({
 				account_id: accountId,
-				amount,
+				category_id: categoryId,
+				name: name.trim() || 'Recurring item',
+				expected_amount: amount,
 				interval,
 				frequency_unit: frequencyUnit,
-				next_due: nextDue,
-				category_id: categoryId,
-				merchant: merchant.trim() || null,
+				start_date: nextDue,
+				next_due_date: nextDue,
 				end_date: endDate || null
 			});
 
-			merchant = '';
+			name = '';
 			amount = '';
 			interval = 1;
 			frequencyUnit = 'month';
@@ -159,7 +160,7 @@
 		notice = '';
 
 		try {
-			await pauseRecurring(rule.recurring_id);
+			await pauseRecurringRule(rule.recurring_rule_id);
 			notice = 'Recurring rule paused.';
 			await loadPage();
 		} catch (err) {
@@ -172,7 +173,7 @@
 		notice = '';
 
 		try {
-			await resumeRecurring(rule.recurring_id);
+			await resumeRecurringRule(rule.recurring_rule_id);
 			notice = 'Recurring rule resumed.';
 			await loadPage();
 		} catch (err) {
@@ -181,7 +182,7 @@
 	}
 
 	async function deactivate(rule: RecurringRule) {
-		if (!confirm(`Deactivate "${rule.merchant ?? 'recurring rule'}"?`)) {
+		if (!confirm(`Deactivate "${rule.name ?? 'recurring rule'}"?`)) {
 			return;
 		}
 
@@ -189,7 +190,7 @@
 		notice = '';
 
 		try {
-			await deactivateRecurring(rule.recurring_id);
+			await deactivateRecurringRule(rule.recurring_rule_id);
 			notice = 'Recurring rule deactivated.';
 			await loadPage();
 		} catch (err) {
@@ -198,7 +199,7 @@
 	}
 
 	async function generate(rule: RecurringRule) {
-		if (!confirm(`Generate a transaction for "${rule.merchant ?? 'recurring rule'}"?`)) {
+		if (!confirm(`Generate a transaction for "${rule.name ?? 'recurring rule'}"?`)) {
 			return;
 		}
 
@@ -206,7 +207,7 @@
 		notice = '';
 
 		try {
-			await generateTransaction(rule.recurring_id);
+			await generateTransaction(rule.recurring_rule_id);
 			notice = 'Transaction generated.';
 			await loadPage();
 		} catch (err) {
@@ -257,10 +258,10 @@
 			</p>
 
 			<label class="mt-5 grid gap-2">
-				<span class="text-sm font-medium text-slate-300">Merchant</span>
+				<span class="text-sm font-medium text-slate-300">Name</span>
 				<input
 					class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-indigo-400"
-					bind:value={merchant}
+					bind:value={name}
 					placeholder="Netflix, Rent, Salary"
 				/>
 			</label>
@@ -368,16 +369,16 @@
 							<div class="flex items-start justify-between gap-4">
 								<div>
 									<p class="font-medium text-slate-100">
-										{rule.merchant ?? 'Recurring item'}
+										{rule.name ?? 'Recurring item'}
 									</p>
 									<p class="mt-1 text-xs text-slate-400">
-										{formatMoney(rule.amount_minor)}
+										{formatMoney(rule.expected_amount_minor)}
 										· {accountName(rule.account_id)}
 										· {categoryName(rule.category_id)}
 									</p>
 									<p class="mt-1 text-xs text-slate-500">
 										Every {rule.interval} {rule.frequency_unit}
-										· next due {formatDate(rule.next_due)}
+										· next due {formatDate(rule.next_due_date)}
 										· ends {formatDate(rule.end_date)}
 									</p>
 									<p class="mt-2">

@@ -38,12 +38,12 @@ def upgrade() -> None:
     sa.CheckConstraint("status IN ('active','archived')", name='ck_account_status'),
     sa.CheckConstraint("type IN ('checking','savings','cash','credit_card','line_of_credit','loan','mortgage','investment','other_asset','other_liability')", name='ck_account_type'),
     sa.ForeignKeyConstraint(['user_id'], ['user.user_id'], ),
-    sa.PrimaryKeyConstraint('account_id'),
-    sa.UniqueConstraint('user_id', 'name', name='uq_account_user_name')
+    sa.PrimaryKeyConstraint('account_id')
     )
     with op.batch_alter_table('account', schema=None) as batch_op:
         batch_op.create_index('ix_account_status', ['status'], unique=False)
         batch_op.create_index('ix_account_user_id', ['user_id'], unique=False)
+        batch_op.create_index('uq_account_active_user_name', ['user_id', 'name'], unique=True, sqlite_where=sa.text("status = 'active'"))
 
     op.create_table('budget',
     sa.Column('budget_id', sa.Integer(), autoincrement=True, nullable=False),
@@ -278,6 +278,7 @@ def downgrade() -> None:
 
     op.drop_table('budget')
     with op.batch_alter_table('account', schema=None) as batch_op:
+        batch_op.drop_index('uq_account_active_user_name', sqlite_where=sa.text("status = 'active'"))
         batch_op.drop_index('ix_account_user_id')
         batch_op.drop_index('ix_account_status')
 

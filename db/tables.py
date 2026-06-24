@@ -28,7 +28,6 @@ account = Table("account", metadata,
         "type IN ('checking','savings','cash','credit_card','line_of_credit','loan','mortgage','investment','other_asset','other_liability')",
         name="ck_account_type",
     ),
-    UniqueConstraint("user_id", "name", name="uq_account_user_name"),
 )
 
 
@@ -181,6 +180,13 @@ transaction_tag = Table("transaction_tag", metadata,
 
 Index("ix_account_user_id", account.c.user_id)
 Index("ix_account_status", account.c.status)
+Index(
+    "uq_account_active_user_name",
+    account.c.user_id,
+    account.c.name,
+    unique=True,
+    sqlite_where=account.c.status == "active",
+)
 
 Index("ix_category_group_user_id", category_group.c.user_id)
 Index("ix_category_group_type", category_group.c.type)
