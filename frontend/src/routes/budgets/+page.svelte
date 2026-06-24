@@ -12,6 +12,9 @@
 		type BudgetPeriod
 	} from '$lib/api/budgets';
 	import { getAllCategories, type Category } from '$lib/api/categories';
+	
+	// ---> NEW: Import your new modal component
+	import CategoryModal from './CategoryModal.svelte'; 
 
 	const userId = 1;
 
@@ -33,6 +36,9 @@
 
 	let itemCategoryId: number | null = $state(null);
 	let plannedAmount = $state('');
+
+	// ---> NEW: State to control when the modal shows
+	let showCategoryModal = $state(false); 
 
 	const periods: { value: BudgetPeriod; label: string }[] = [
 		{ value: 'weekly', label: 'Weekly' },
@@ -234,46 +240,57 @@
 		}
 	}
 
+	// ---> NEW: Helper to refresh categories when the modal creates one
+	async function handleCategoryCreated() {
+		try {
+			categories = await getAllCategories(userId);
+			notice = 'New category added successfully.';
+		} catch (err) {
+			error = err instanceof Error ? err.message : String(err);
+		}
+	}
+
 	onMount(loadBudgets);
 </script>
 
-<section>
-	<div class="mb-8 flex items-start justify-between gap-4">
-		<div>
-			<h1 class="text-3xl font-bold tracking-tight text-slate-100">Budgets</h1>
-			<p class="mt-2 text-sm text-slate-400">
-				Plan spending by category. This is still an integration stand-in.
-			</p>
-		</div>
+<div class="flex flex-col gap-8 p-8">
 
-		<div class="rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-xs text-slate-400">
+	<div class="flex items-end justify-between">
+		<div>
+			<p class="text-xs font-semibold uppercase tracking-widest text-slate-500">Plan</p>
+			<h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-50">Budgets</h1>
+			<p class="mt-2 text-sm text-slate-400">Plan spending by category. This is still an integration stand-in.</p>
+		</div>
+		<div class="rounded-full border border-slate-800/60 bg-slate-900/80 px-3 py-1 text-xs font-medium text-slate-400">
 			{budgets.length} budgets
 		</div>
 	</div>
 
 	{#if error}
-		<div class="mb-4 rounded-xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-200">
+		<div class="rounded-2xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200">
 			{error}
 		</div>
 	{/if}
 
 	{#if notice}
-		<div class="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-sm text-emerald-200">
+		<div class="rounded-2xl border border-emerald-500/30 bg-emerald-950/30 p-4 text-sm text-emerald-200">
 			{notice}
 		</div>
 	{/if}
 
-	<div class="grid gap-6 xl:grid-cols-[380px_1fr]">
-		<div class="space-y-6">
+	<div class="grid gap-4 xl:grid-cols-[380px_1fr]">
+		
+		<div class="flex flex-col gap-4">
+			
 			<form
-				class="rounded-xl border border-slate-800 bg-slate-900 p-5"
+				class="rounded-2xl border border-slate-800/60 bg-slate-900/80 p-6"
 				onsubmit={(event) => {
 					event.preventDefault();
 					submitBudget();
 				}}
 			>
-				<h2 class="text-lg font-semibold text-slate-100">New budget</h2>
-				<p class="mt-1 text-sm text-slate-400">
+				<p class="text-sm font-semibold text-slate-100">New budget</p>
+				<p class="mt-1 text-xs text-slate-500">
 					Create a dated budget window.
 				</p>
 
@@ -286,17 +303,27 @@
 					/>
 				</label>
 
-				<label class="mt-4 grid gap-2">
-					<span class="text-sm font-medium text-slate-300">Period</span>
+				<div class="mt-5 grid gap-2">
+					<div class="flex items-center justify-between">
+						<label for="category-select" class="text-sm font-medium text-slate-300">Category</label>
+						<button
+							type="button"
+							class="text-xs font-medium text-indigo-400 transition-colors hover:text-indigo-300"
+							onclick={() => showCategoryModal = true}
+						>
+							+ New category
+						</button>
+					</div>
 					<select
+						id="category-select"
 						class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400"
-						bind:value={period}
+						bind:value={itemCategoryId}
 					>
-						{#each periods as option}
-							<option value={option.value}>{option.label}</option>
+						{#each categories as category}
+							<option value={category.category_id}>{category.name}</option>
 						{/each}
 					</select>
-				</label>
+				</div>
 
 				<div class="mt-4 grid gap-4 sm:grid-cols-2">
 					<label class="grid gap-2">
@@ -319,7 +346,7 @@
 				</div>
 
 				<button
-					class="mt-5 w-full rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+					class="mt-5 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
 					type="submit"
 					disabled={saving}
 				>
@@ -328,14 +355,14 @@
 			</form>
 
 			<form
-				class="rounded-xl border border-slate-800 bg-slate-900 p-5"
+				class="rounded-2xl border border-slate-800/60 bg-slate-900/80 p-6"
 				onsubmit={(event) => {
 					event.preventDefault();
 					submitBudgetItem();
 				}}
 			>
-				<h2 class="text-lg font-semibold text-slate-100">New budget item</h2>
-				<p class="mt-1 text-sm text-slate-400">
+				<p class="text-sm font-semibold text-slate-100">New budget item</p>
+				<p class="mt-1 text-xs text-slate-500">
 					Add a planned category amount to the selected budget.
 				</p>
 
@@ -361,7 +388,7 @@
 				</label>
 
 				<button
-					class="mt-5 w-full rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+					class="mt-5 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
 					type="submit"
 					disabled={selectedBudgetId === null || categories.length === 0}
 				>
@@ -370,23 +397,24 @@
 			</form>
 		</div>
 
-		<div class="grid gap-6">
-			<div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-				<div class="border-b border-slate-800 px-5 py-4">
-					<h2 class="text-lg font-semibold text-slate-100">Budgets</h2>
-					<p class="mt-1 text-sm text-slate-400">
+		<div class="flex flex-col gap-4">
+			
+			<div class="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/80">
+				<div class="border-b border-slate-800/60 px-6 py-5">
+					<p class="text-sm font-semibold text-slate-100">Budgets</p>
+					<p class="mt-1 text-xs text-slate-500">
 						Select a budget to view its items.
 					</p>
 				</div>
 
 				{#if loading}
-					<p class="p-5 text-sm text-slate-400">Loading budgets...</p>
+					<p class="px-6 py-12 text-center text-sm text-slate-600">Loading budgets...</p>
 				{:else}
-					<div class="divide-y divide-slate-800">
+					<div class="divide-y divide-slate-800/60">
 						{#each budgets as budget}
 							<div
-								class={`flex items-center justify-between gap-4 px-5 py-4 ${
-									selectedBudgetId === budget.budget_id ? 'bg-slate-800/50' : ''
+								class={`flex items-center justify-between gap-4 px-6 py-4 ${
+									selectedBudgetId === budget.budget_id ? 'bg-slate-800/30' : ''
 								}`}
 							>
 								<button
@@ -401,7 +429,7 @@
 								</button>
 
 								<button
-									class="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-950/40"
+									class="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-950/40"
 									type="button"
 									onclick={() => removeBudget(budget)}
 								>
@@ -409,53 +437,53 @@
 								</button>
 							</div>
 						{:else}
-							<p class="p-5 text-sm text-slate-500">No budgets yet.</p>
+							<p class="px-6 py-12 text-center text-sm text-slate-600">No budgets yet.</p>
 						{/each}
 					</div>
 				{/if}
 			</div>
 
-			<div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-				<div class="border-b border-slate-800 px-5 py-4">
-					<h2 class="text-lg font-semibold text-slate-100">
+			<div class="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/80">
+				<div class="border-b border-slate-800/60 px-6 py-5">
+					<p class="text-sm font-semibold text-slate-100">
 						{selectedBudget ? selectedBudget.name : 'Budget items'}
-					</h2>
-					<p class="mt-1 text-sm text-slate-400">
+					</p>
+					<p class="mt-1 text-xs text-slate-500">
 						Planned category amounts.
 					</p>
 				</div>
 
 				{#if selectedBudgetId === null}
-					<p class="p-5 text-sm text-slate-500">Select a budget first.</p>
+					<p class="px-6 py-12 text-center text-sm text-slate-600">Select a budget first.</p>
 				{:else if loadingItems}
-					<p class="p-5 text-sm text-slate-400">Loading budget items...</p>
+					<p class="px-6 py-12 text-center text-sm text-slate-600">Loading budget items...</p>
 				{:else}
 					<div class="overflow-x-auto">
 						<table class="w-full text-left text-sm">
-							<thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-500">
+							<thead class="text-[11px] font-bold uppercase tracking-widest text-slate-500">
 								<tr>
-									<th class="px-5 py-3">Category</th>
-									<th class="px-5 py-3">Rollover</th>
-									<th class="px-5 py-3 text-right">Planned</th>
-									<th class="px-5 py-3 text-right">Actions</th>
+									<th class="px-6 py-3">Category</th>
+									<th class="px-6 py-3">Rollover</th>
+									<th class="px-6 py-3 text-right">Planned</th>
+									<th class="px-6 py-3 text-right">Actions</th>
 								</tr>
 							</thead>
 
 							<tbody>
 								{#each budgetItems as item}
-									<tr class="border-t border-slate-800">
-										<td class="px-5 py-4 font-medium text-slate-100">
+									<tr class="border-t border-slate-800/60">
+										<td class="px-6 py-4 font-medium text-slate-100">
 											{categoryName(item.category_id)}
 										</td>
-										<td class="px-5 py-4 text-slate-300">
+										<td class="px-6 py-4 text-slate-300">
 											{item.rollover_enabled ? 'Yes' : 'No'}
 										</td>
-										<td class="px-5 py-4 text-right font-semibold text-slate-100">
+										<td class="px-6 py-4 text-right font-semibold tabular-nums text-slate-100">
 											{formatMoney(item.planned_amount_minor)}
 										</td>
-										<td class="px-5 py-4 text-right">
+										<td class="px-6 py-4 text-right">
 											<button
-												class="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-950/40"
+												class="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-950/40"
 												type="button"
 												onclick={() => removeBudgetItem(item)}
 											>
@@ -465,7 +493,7 @@
 									</tr>
 								{:else}
 									<tr>
-										<td class="px-5 py-8 text-center text-sm text-slate-500" colspan="4">
+										<td class="px-6 py-12 text-center text-sm text-slate-600" colspan="4">
 											No budget items yet.
 										</td>
 									</tr>
@@ -475,6 +503,12 @@
 					</div>
 				{/if}
 			</div>
+			
 		</div>
 	</div>
-</section>
+	<CategoryModal 
+        bind:isOpen={showCategoryModal} 
+        userId={userId} 
+        onCreated={handleCategoryCreated} 
+    />
+</div>

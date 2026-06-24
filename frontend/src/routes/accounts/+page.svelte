@@ -28,6 +28,37 @@
 		{ value: 'other', label: 'Other' }
 	];
 
+	// Color accents per account type — falls back to slate for any type
+	// not listed here, so it won't break if "bank"/"ewallet" end up being
+	// the real values instead of "checking"/"cash".
+	const TYPE_COLORS: Record<string, string> = {
+		checking: '#6366f1',
+		bank: '#6366f1',
+		savings: '#10b981',
+		cash: '#f59e0b',
+		credit: '#f43f5e',
+		investment: '#8b5cf6',
+		loan: '#f97316',
+		ewallet: '#06b6d4',
+		other: '#64748b'
+	};
+
+	function typeColor(t: string) {
+		return TYPE_COLORS[t] ?? '#64748b';
+	}
+
+	function typeLabel(t: string) {
+		return accountTypes.find((a) => a.value === t)?.label ?? t;
+	}
+
+	// NOTE: assumes Account has a `balance_minor` field (centavos, like
+	// amount_minor elsewhere in the app). If that field doesn't exist yet
+	// on the type/backend, this will need a small follow-up.
+	function fmtBalance(minor: number | undefined | null) {
+		if (minor == null) return '—';
+		return '₱' + (minor / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+	}
+
 	async function loadAccounts() {
 		loading = true;
 		error = '';
@@ -93,42 +124,44 @@
 	onMount(loadAccounts);
 </script>
 
-<section>
-	<div class="mb-8 flex items-start justify-between gap-4">
-		<div>
-			<h1 class="text-3xl font-bold tracking-tight text-slate-100">Accounts</h1>
-			<p class="mt-2 text-sm text-slate-400">
-				Create and manage local accounts.
-			</p>
-		</div>
+<div class="flex flex-col gap-8 p-8">
 
-		<div class="rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-xs text-slate-400">
+	<!-- Header — matches Dashboard's eyebrow + title pattern -->
+	<div class="flex items-end justify-between">
+		<div>
+			<p class="text-xs font-semibold uppercase tracking-widest text-slate-500">Manage</p>
+			<h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-50">Accounts</h1>
+			<p class="mt-2 text-sm text-slate-400">Create and manage local accounts.</p>
+		</div>
+		<div class="rounded-full border border-slate-800/60 bg-slate-900/80 px-3 py-1 text-xs font-medium text-slate-400">
 			{accounts.length} active
 		</div>
 	</div>
 
 	{#if error}
-		<div class="mb-4 rounded-xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-200">
+		<div class="rounded-2xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200">
 			{error}
 		</div>
 	{/if}
 
 	{#if notice}
-		<div class="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-sm text-emerald-200">
+		<div class="rounded-2xl border border-emerald-500/30 bg-emerald-950/30 p-4 text-sm text-emerald-200">
 			{notice}
 		</div>
 	{/if}
 
-	<div class="grid gap-6 xl:grid-cols-[380px_1fr]">
+	<div class="grid gap-4 xl:grid-cols-[380px_1fr]">
+
+		<!-- New account form -->
 		<form
-			class="rounded-xl border border-slate-800 bg-slate-900 p-5"
+			class="rounded-2xl border border-slate-800/60 bg-slate-900/80 p-6"
 			onsubmit={(event) => {
 				event.preventDefault();
 				submitAccount();
 			}}
 		>
-			<h2 class="text-lg font-semibold text-slate-100">New account</h2>
-			<p class="mt-1 text-sm text-slate-400">
+			<p class="text-sm font-semibold text-slate-100">New account</p>
+			<p class="mt-1 text-xs text-slate-500">
 				Add cash, bank, credit, loan, or investment accounts.
 			</p>
 
@@ -154,7 +187,7 @@
 			</label>
 
 			<button
-				class="mt-5 w-full rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+				class="mt-5 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
 				type="submit"
 				disabled={saving}
 			>
@@ -162,45 +195,54 @@
 			</button>
 		</form>
 
-		<div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-			<div class="border-b border-slate-800 px-5 py-4">
-				<h2 class="text-lg font-semibold text-slate-100">Active accounts</h2>
-				<p class="mt-1 text-sm text-slate-400">
-					Archived accounts are hidden from this list.
-				</p>
+		<!-- Active accounts -->
+		<div class="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/80">
+			<div class="border-b border-slate-800/60 px-6 py-5">
+				<p class="text-sm font-semibold text-slate-100">Active accounts</p>
+				<p class="mt-1 text-xs text-slate-500">Archived accounts are hidden from this list.</p>
 			</div>
 
 			{#if loading}
-				<p class="p-5 text-sm text-slate-400">Loading accounts...</p>
+				<p class="px-6 py-12 text-center text-sm text-slate-600">Loading accounts...</p>
 			{:else}
 				<div class="overflow-x-auto">
 					<table class="w-full text-left text-sm">
-						<thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-500">
+						<thead class="text-[11px] font-bold uppercase tracking-widest text-slate-500">
 							<tr>
-								<th class="px-5 py-3">Name</th>
-								<th class="px-5 py-3">Type</th>
-								<th class="px-5 py-3">Status</th>
-								<th class="px-5 py-3 text-right">Actions</th>
+								<th class="px-6 py-3">Name</th>
+								<th class="px-6 py-3">Type</th>
+								<th class="px-6 py-3">Balance</th>
+								<th class="px-6 py-3">Status</th>
+								<th class="px-6 py-3 text-right">Actions</th>
 							</tr>
 						</thead>
 
 						<tbody>
 							{#each accounts as account}
-								<tr class="border-t border-slate-800">
-									<td class="px-5 py-4 font-medium text-slate-100">
+								<tr class="border-t border-slate-800/60">
+									<td class="px-6 py-4 font-medium text-slate-100">
 										{account.name}
 									</td>
-									<td class="px-5 py-4 text-slate-300">
-										{account.type}
+									<td class="px-6 py-4 text-slate-300">
+										<span class="inline-flex items-center gap-2">
+											<span
+												class="h-2 w-2 flex-shrink-0 rounded-full"
+												style="background:{typeColor(account.type)}"
+											></span>
+											{typeLabel(account.type)}
+										</span>
 									</td>
-									<td class="px-5 py-4">
+									<td class="px-6 py-4 font-semibold tabular-nums text-slate-100">
+										{fmtBalance(account.balance_minor)}
+									</td>
+									<td class="px-6 py-4">
 										<span class="rounded-full bg-emerald-950 px-2 py-1 text-xs text-emerald-300">
 											{account.status}
 										</span>
 									</td>
-									<td class="px-5 py-4 text-right">
+									<td class="px-6 py-4 text-right">
 										<button
-											class="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-950/40"
+											class="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-950/40"
 											type="button"
 											onclick={() => archive(account)}
 										>
@@ -210,7 +252,7 @@
 								</tr>
 							{:else}
 								<tr>
-									<td class="px-5 py-8 text-center text-sm text-slate-500" colspan="4">
+									<td class="px-6 py-12 text-center text-sm text-slate-600" colspan="5">
 										No accounts yet. Create one to get started.
 									</td>
 								</tr>
@@ -221,4 +263,4 @@
 			{/if}
 		</div>
 	</div>
-</section>
+</div>
