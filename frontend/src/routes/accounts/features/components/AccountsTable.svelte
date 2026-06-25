@@ -21,8 +21,6 @@
 			<p class="text-sm font-semibold">Active accounts</p>
 			<p class="text-muted mt-1 text-xs">Archived accounts are hidden from this list.</p>
 		</div>
-
-		<span class="pill">{accounts.length} active</span>
 	</div>
 
 	{#if loading}

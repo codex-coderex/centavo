@@ -31,7 +31,6 @@
 	<p class="text-muted px-6 py-12 text-center text-sm">Loading budgets...</p>
 {:else if budgets.length === 0}
 	<div class="dashboard-card px-6 py-12 text-center">
-		<p class="font-semibold">No budgets yet.</p>
 		<p class="text-muted mt-1 text-sm">Create a budget to start planning category spending.</p>
 	</div>
 {:else}

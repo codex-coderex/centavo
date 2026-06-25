@@ -36,7 +36,6 @@
 	<p class="text-muted px-6 py-12 text-center text-sm">Loading goals...</p>
 {:else if goals.length === 0}
 	<div class="dashboard-card px-6 py-12 text-center">
-		<p class="font-semibold">No goals yet.</p>
 		<p class="text-muted mt-1 text-sm">Create a goal to reserve account funds for a target.</p>
 	</div>
 {:else}

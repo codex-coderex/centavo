@@ -4,11 +4,17 @@ import api.budgets as budgets
 import api.categories as categories
 import api.goals as goals
 import api.recurring as recurring
+import api.seed as seed
 import api.tags as tags
 import api.transactions as transactions
 
 
 class FinanceApi:
+
+    # Seed / Demo Data
+    def seed_sample_data(self):
+        return seed.seed_sample_data()
+
 
     # Users
     def get_users(self):
