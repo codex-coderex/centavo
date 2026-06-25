@@ -40,7 +40,7 @@ Open a **new terminal window**, navigate to the project folder, set the environm
 **On Windows (PowerShell):**
 ```powershell
 cd centavo
-\$env:FRONTEND_DEV_URL="http://localhost:5173/"
+$env:FRONTEND_DEV_URL="http://localhost:5173/"
 python main.py
 ```
 
