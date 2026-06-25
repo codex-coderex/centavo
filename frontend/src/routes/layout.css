@@ -198,8 +198,26 @@ body {
 	transform: translateY(-1px);
 }
 
-.app-page-header {
-	min-height: 4rem;
+.app-page-header,
+.page-header {
+	min-height: 6rem;
+	border-bottom: 1px solid var(--app-border);
+	background: var(--app-surface);
+	padding: 1.35rem 1.5rem;
+}
+
+.page-header {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+@media (max-width: 720px) {
+	.page-header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
 }
 
 .transaction-page {
