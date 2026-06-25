@@ -3,6 +3,8 @@ import db.queries.transactions as transactions_q
 import db.queries.accounts as accounts_q
 import db.queries.users as users_q
 
+TAG_DUPLICATE_ERROR = "A tag with this name already exists."
+
 
 def get_tags(user_id: int):
     return tags_q.get_tags(user_id)
@@ -18,6 +20,8 @@ def create_tag(user_id: int, name: str):
         raise ValueError("User does not exist")
     if not name:
         raise ValueError("Tag name is required")
+    if tags_q.get_tag_by_user_name(user_id, name) is not None:
+        raise ValueError(TAG_DUPLICATE_ERROR)
     tag_id = tags_q.create_tag(user_id=user_id, name=name)
     return {"tag_id": tag_id}
 
@@ -34,6 +38,15 @@ def update_tag(tag_id: int, name: str | None = None):
         kwargs["name"] = name
 
     if kwargs:
+        tag = tags_q.get_tag(tag_id)
+
+        if tags_q.get_tag_by_user_name(
+            tag["user_id"],
+            kwargs["name"],
+            exclude_tag_id=tag_id,
+        ) is not None:
+            raise ValueError(TAG_DUPLICATE_ERROR)
+
         tags_q.update_tag(tag_id, **kwargs)
     return {"status": "updated"}
 

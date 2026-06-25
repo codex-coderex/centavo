@@ -17,6 +17,23 @@ def get_tag(tag_id: int):
         return row_to_dict(row)
 
 
+def get_tag_by_user_name(user_id: int, name: str, exclude_tag_id: int | None = None):
+    sql = """
+        SELECT *
+        FROM tag
+        WHERE user_id = ? AND lower(name) = lower(?)
+    """
+    params = [user_id, name]
+
+    if exclude_tag_id is not None:
+        sql += " AND tag_id != ?"
+        params.append(exclude_tag_id)
+
+    with get_conn() as conn:
+        row = execute(conn, sql, params).fetchone()
+        return row_to_dict(row)
+
+
 def create_tag(user_id: int, name: str):
     with get_conn() as conn:
         cursor = execute(

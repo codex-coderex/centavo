@@ -5,6 +5,8 @@ from utils.enums import CategoryGroupType, normalize_enum_value
 
 
 UNCATEGORIZED_NAME = "Uncategorized"
+CATEGORY_GROUP_DUPLICATE_ERROR = "A category group with this name already exists for this type."
+CATEGORY_DUPLICATE_ERROR = "A category with this name already exists in this group."
 
 
 def get_category_groups(user_id: int):
@@ -38,6 +40,9 @@ def create_category_group(user_id: int, name: str, type: str):
 
     type = normalize_enum_value(type, CategoryGroupType, "Invalid category group type")
 
+    if categories_q.get_category_group_by_user_type_name(user_id, type, name) is not None:
+        raise ValueError(CATEGORY_GROUP_DUPLICATE_ERROR)
+
     group_id = categories_q.create_category_group(
         user_id=user_id,
         name=name,
@@ -61,6 +66,9 @@ def create_category(group_id: int, name: str):
 
     if not group["is_active"]:
         raise ValueError("Cannot add category to an inactive group")
+
+    if categories_q.get_category_by_group_name(group_id, name) is not None:
+        raise ValueError(CATEGORY_DUPLICATE_ERROR)
 
     category_id = categories_q.create_category(group_id=group_id, name=name, is_system=False)
 
@@ -91,6 +99,17 @@ def update_category_group(
     if is_active is not None:
         kwargs["is_active"] = is_active
 
+    next_name = kwargs.get("name", group["name"])
+    next_type = kwargs.get("type", group["type"])
+
+    if categories_q.get_category_group_by_user_type_name(
+        group["user_id"],
+        next_type,
+        next_name,
+        exclude_group_id=group_id,
+    ) is not None:
+        raise ValueError(CATEGORY_GROUP_DUPLICATE_ERROR)
+
     if kwargs:
         categories_q.update_category_group(group_id, **kwargs)
 
@@ -117,6 +136,13 @@ def update_category(
 
         if not name:
             raise ValueError("Category name cannot be empty")
+
+        if categories_q.get_category_by_group_name(
+            category["group_id"],
+            name,
+            exclude_category_id=category_id,
+        ) is not None:
+            raise ValueError(CATEGORY_DUPLICATE_ERROR)
 
         kwargs["name"] = name
 

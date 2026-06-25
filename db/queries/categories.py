@@ -41,6 +41,28 @@ def get_category_group(group_id: int):
         return row_to_dict(row)
 
 
+def get_category_group_by_user_type_name(
+    user_id: int,
+    type: str,
+    name: str,
+    exclude_group_id: int | None = None,
+):
+    sql = """
+        SELECT *
+        FROM category_group
+        WHERE user_id = ? AND type = ? AND lower(name) = lower(?)
+    """
+    params = [user_id, type, name]
+
+    if exclude_group_id is not None:
+        sql += " AND group_id != ?"
+        params.append(exclude_group_id)
+
+    with get_conn() as conn:
+        row = execute(conn, sql, params).fetchone()
+        return row_to_dict(row)
+
+
 def get_categories_by_group(group_id: int, active_only: bool = False):
     sql = "SELECT * FROM category WHERE group_id = ?"
     params = [group_id]
@@ -96,6 +118,27 @@ def get_category(category_id: int):
             "SELECT * FROM category WHERE category_id = ?",
             (category_id,),
         ).fetchone()
+        return row_to_dict(row)
+
+
+def get_category_by_group_name(
+    group_id: int,
+    name: str,
+    exclude_category_id: int | None = None,
+):
+    sql = """
+        SELECT *
+        FROM category
+        WHERE group_id = ? AND lower(name) = lower(?)
+    """
+    params = [group_id, name]
+
+    if exclude_category_id is not None:
+        sql += " AND category_id != ?"
+        params.append(exclude_category_id)
+
+    with get_conn() as conn:
+        row = execute(conn, sql, params).fetchone()
         return row_to_dict(row)
 
 

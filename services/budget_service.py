@@ -9,6 +9,9 @@ from utils.dates import (
     require_datetime,
 )
 
+BUDGET_DUPLICATE_ERROR = "A budget with this name already starts on this date."
+BUDGET_ITEM_DUPLICATE_ERROR = "This budget already has an item for that category."
+
 
 def get_budgets(user_id: int):
     return budgets_q.get_budgets(user_id)
@@ -48,6 +51,9 @@ def create_budget(
 
     if end_date < start_date:
         raise ValueError("End date cannot be before start date")
+
+    if budgets_q.get_budget_by_user_name_start_date(user_id, name, start_date) is not None:
+        raise ValueError(BUDGET_DUPLICATE_ERROR)
 
     budget_id = budgets_q.create_budget(
         user_id=user_id,
@@ -124,6 +130,16 @@ def update_budget(
     if next_end < next_start:
         raise ValueError("End date cannot be before start date")
 
+    next_name = kwargs.get("name", budget["name"])
+
+    if budgets_q.get_budget_by_user_name_start_date(
+        budget["user_id"],
+        next_name,
+        next_start,
+        exclude_budget_id=budget_id,
+    ) is not None:
+        raise ValueError(BUDGET_DUPLICATE_ERROR)
+
     if kwargs:
         budgets_q.update_budget(budget_id, **kwargs)
 
@@ -174,6 +190,9 @@ def create_budget_item(
 
     if planned_amount_minor < 0:
         raise ValueError("Planned amount cannot be negative")
+
+    if budgets_q.get_budget_item_by_budget_category(budget_id, category_id) is not None:
+        raise ValueError(BUDGET_ITEM_DUPLICATE_ERROR)
 
     budget_item_id = budgets_q.create_budget_item(
         budget_id=budget_id,
@@ -229,6 +248,15 @@ def update_budget_item(
             raise ValueError("Category is inactive")
 
         kwargs["category_id"] = category_id
+
+    next_category_id = kwargs.get("category_id", budget_item["category_id"])
+
+    if budgets_q.get_budget_item_by_budget_category(
+        budget_item["budget_id"],
+        next_category_id,
+        exclude_budget_item_id=budget_item_id,
+    ) is not None:
+        raise ValueError(BUDGET_ITEM_DUPLICATE_ERROR)
 
     if rollover_enabled is not None:
         kwargs["rollover_enabled"] = rollover_enabled

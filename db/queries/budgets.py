@@ -23,6 +23,28 @@ def get_budget(budget_id: int):
         return row_to_dict(row)
 
 
+def get_budget_by_user_name_start_date(
+    user_id: int,
+    name: str,
+    start_date,
+    exclude_budget_id: int | None = None,
+):
+    sql = """
+        SELECT *
+        FROM budget
+        WHERE user_id = ? AND lower(name) = lower(?) AND start_date = ?
+    """
+    params = [user_id, name, start_date]
+
+    if exclude_budget_id is not None:
+        sql += " AND budget_id != ?"
+        params.append(exclude_budget_id)
+
+    with get_conn() as conn:
+        row = execute(conn, sql, params).fetchone()
+        return row_to_dict(row)
+
+
 def create_budget(
     user_id: int,
     name: str,
@@ -80,6 +102,27 @@ def get_budget_items(budget_id: int):
             (budget_id,),
         ).fetchall()
         return rows_to_dicts(rows)
+
+
+def get_budget_item_by_budget_category(
+    budget_id: int,
+    category_id: int,
+    exclude_budget_item_id: int | None = None,
+):
+    sql = """
+        SELECT *
+        FROM budget_item
+        WHERE budget_id = ? AND category_id = ?
+    """
+    params = [budget_id, category_id]
+
+    if exclude_budget_item_id is not None:
+        sql += " AND budget_item_id != ?"
+        params.append(exclude_budget_item_id)
+
+    with get_conn() as conn:
+        row = execute(conn, sql, params).fetchone()
+        return row_to_dict(row)
 
 
 def create_budget_item(
