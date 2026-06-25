@@ -1,113 +1,150 @@
-from sqlalchemy import select, insert, update
-from db.tables import recurring, transaction, account
-from db.connection import get_conn
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 
-def get_recurring(user_id: int):
+from db.connection import build_update, execute, get_conn, row_to_dict, rows_to_dicts
+
+
+def get_recurring_rules(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(recurring)
-            .join(account, recurring.c.account_id == account.c.account_id)
-            .where(account.c.user_id == user_id)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT recurring_rule.*
+            FROM recurring_rule
+            JOIN account ON recurring_rule.account_id = account.account_id
+            WHERE account.user_id = ?
+            ORDER BY recurring_rule.next_due_date
+            """,
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
-def get_due_recurring():
+
+def get_recurring_rule(recurring_rule_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(recurring)
-            .where(recurring.c.status == "active")
-            .where(recurring.c.next_due <= datetime.now())
-        )
-        return [dict(row._mapping) for row in result]
+        row = execute(
+            conn,
+            "SELECT * FROM recurring_rule WHERE recurring_rule_id = ?",
+            (recurring_rule_id,),
+        ).fetchone()
+        return row_to_dict(row)
 
-def create_recurring(account_id: int, amount: float,
-                    interval: int, frequency_unit: str, next_due: str,
-                     category_id: int = None, merchant: str = None,
-                     end_date: str = None):
+
+def get_due_recurring_rules(as_of=None):
+    if as_of is None:
+        as_of = datetime.now()
+
     with get_conn() as conn:
-        result = conn.execute(
-            insert(recurring).values(
-                account_id=account_id,
-                amount=amount,
-                interval=interval,
-                frequency_unit=frequency_unit,
-                next_due=next_due,
-                category_id=category_id,
-                merchant=merchant,
-                end_date=end_date,
-                status="active"
-            )
-        )
-        return result.inserted_primary_key[0]
+        rows = execute(
+            conn,
+            """
+            SELECT *
+            FROM recurring_rule
+            WHERE status = 'active' AND next_due_date <= ?
+            """,
+            (as_of,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
-def generate_transaction(recurring_id: int):
+
+def create_recurring_rule(
+    account_id: int,
+    category_id: int,
+    name: str,
+    expected_amount_minor: int,
+    interval: int,
+    frequency_unit: str,
+    start_date,
+    next_due_date,
+    end_date=None,
+):
     with get_conn() as conn:
-        row = conn.execute(
-            select(recurring).where(recurring.c.recurring_id == recurring_id)
-        ).first()
-
-        if not row:
-            return None
-
-        r = dict(row._mapping)
-
-        # create the transaction
-        conn.execute(
-            insert(transaction).values(
-                account_id=r["account_id"],
-                category_id=r["category_id"],
-                recurring_id=recurring_id,
-                merchant=r["merchant"],
-                amount=r["amount"],
-                txn_date=datetime.now(),
-                status="cleared",
-                needs_review=False,
-                updated_at=datetime.now()
-            )
-        )
-
-        # calculate next due date
-        next_due = _next_due(r["next_due"], r["interval"], r["frequency_unit"])
-
-        # deactivate if past end date
-        if r["end_date"] and next_due > r["end_date"]:
-            conn.execute(
-                update(recurring)
-                .where(recurring.c.recurring_id == recurring_id)
-                .values(status="inactive")
-            )
-        else:
-            conn.execute(
-                update(recurring)
-                .where(recurring.c.recurring_id == recurring_id)
-                .values(next_due=next_due)
-            )
-
-def pause_recurring(recurring_id: int):
-    with get_conn() as conn:
-        conn.execute(
-            update(recurring)
-            .where(recurring.c.recurring_id == recurring_id)
-            .values(status="paused")
+        return create_recurring_rule_with_conn(
+            conn=conn,
+            account_id=account_id,
+            category_id=category_id,
+            name=name,
+            expected_amount_minor=expected_amount_minor,
+            interval=interval,
+            frequency_unit=frequency_unit,
+            start_date=start_date,
+            next_due_date=next_due_date,
+            end_date=end_date,
         )
 
-def resume_recurring(recurring_id: int):
-    with get_conn() as conn:
-        conn.execute(
-            update(recurring)
-            .where(recurring.c.recurring_id == recurring_id)
-            .values(status="active")
-        )
 
-def _next_due(current_due: datetime, interval: int, frequency_unit: str) -> datetime:
-    if isinstance(current_due, str):
-        current_due = datetime.fromisoformat(current_due)
-    match frequency_unit:
-        case "day":   return current_due + relativedelta(days=interval)
-        case "week":  return current_due + relativedelta(weeks=interval)
-        case "month": return current_due + relativedelta(months=interval)
-        case "year":  return current_due + relativedelta(years=interval)
-        case _:
-            raise ValueError(f"Unknown frequency_unit: {frequency_unit}")
+def create_recurring_rule_with_conn(
+    conn,
+    account_id: int,
+    category_id: int,
+    name: str,
+    expected_amount_minor: int,
+    interval: int,
+    frequency_unit: str,
+    start_date,
+    next_due_date,
+    end_date=None,
+):
+    cursor = execute(
+        conn,
+        """
+        INSERT INTO recurring_rule (
+            account_id, category_id, name, expected_amount_minor, interval,
+            frequency_unit, start_date, next_due_date, end_date, status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+        """,
+        (
+            account_id,
+            category_id,
+            name,
+            expected_amount_minor,
+            interval,
+            frequency_unit,
+            start_date,
+            next_due_date,
+            end_date,
+        ),
+    )
+    return cursor.lastrowid
+
+
+def update_recurring_rule(recurring_rule_id: int, **kwargs):
+    with get_conn() as conn:
+        update_recurring_rule_with_conn(conn, recurring_rule_id, **kwargs)
+
+
+def update_recurring_rule_with_conn(conn, recurring_rule_id: int, **kwargs):
+    allowed = {
+        "account_id",
+        "category_id",
+        "name",
+        "expected_amount_minor",
+        "interval",
+        "frequency_unit",
+        "start_date",
+        "next_due_date",
+        "end_date",
+        "status",
+    }
+    clean_values = {key: value for key, value in kwargs.items() if key in allowed}
+
+    statement = build_update(
+        "recurring_rule",
+        "recurring_rule_id",
+        recurring_rule_id,
+        clean_values,
+    )
+    if statement is None:
+        return None
+
+    sql, params = statement
+    execute(conn, sql, params)
+
+
+def delete_recurring_rule(recurring_rule_id: int):
+    with get_conn() as conn:
+        execute(
+            conn,
+            "DELETE FROM recurring_rule WHERE recurring_rule_id = ?",
+            (recurring_rule_id,),
+        )

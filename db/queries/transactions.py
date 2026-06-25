@@ -1,100 +1,171 @@
-from sqlalchemy import select, insert, update
-from db.tables import transaction
-from db.connection import get_conn
 from datetime import datetime
 
-def get_transactions(account_id: int):
+from db.connection import build_update, execute, get_conn, row_to_dict, rows_to_dicts
+
+
+def get_transactions_by_user(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(transaction).where(transaction.c.account_id == account_id)
-            .order_by(transaction.c.txn_date.desc())
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT "transaction".*
+            FROM "transaction"
+            JOIN account ON "transaction".account_id = account.account_id
+            WHERE account.user_id = ?
+            ORDER BY "transaction".transaction_date DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
+
+
+def get_transactions_by_account(account_id: int):
+    with get_conn() as conn:
+        rows = execute(
+            conn,
+            """
+            SELECT *
+            FROM "transaction"
+            WHERE account_id = ?
+            ORDER BY transaction_date DESC
+            """,
+            (account_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
+
 
 def get_transaction(transaction_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(transaction).where(transaction.c.transaction_id == transaction_id)
-        )
-        row = result.first()
-        return dict(row._mapping) if row else None
+        row = execute(
+            conn,
+            'SELECT * FROM "transaction" WHERE transaction_id = ?',
+            (transaction_id,),
+        ).fetchone()
+        return row_to_dict(row)
 
-def create_transaction(account_id: int, amount: float, txn_date: str,
-                        merchant: str = None, category_id: int = None,
-                        note: str = None, goal_id: int = None,
-                        recurring_id: int = None):
+
+def create_transaction(
+    account_id: int,
+    amount_minor: int,
+    transaction_date,
+    category_id: int,
+    budget_item_id: int | None = None,
+    payee: str | None = None,
+    notes: str | None = None,
+    recurring_rule_id: int | None = None,
+    transfer_id: int | None = None,
+):
     with get_conn() as conn:
-        result = conn.execute(
-            insert(transaction).values(
-                account_id=account_id,
-                amount=amount,
-                txn_date=txn_date,
-                merchant=merchant,
-                category_id=category_id,
-                note=note,
-                goal_id=goal_id,
-                recurring_id=recurring_id,
-                status="cleared",
-                needs_review=False,
-                updated_at=datetime.now()
-            )
-        )
-        return result.inserted_primary_key[0]
-
-def create_transfer(from_account_id: int, to_account_id: int,
-                    amount: float, txn_date: str, category_id: int):
-    with get_conn() as conn:
-        # debit side
-        debit = conn.execute(
-            insert(transaction).values(
-                account_id=from_account_id,
-                amount=-amount,
-                txn_date=txn_date,
-                category_id=category_id,
-                status="cleared",
-                needs_review=False,
-                updated_at=datetime.now()
-            )
-        )
-        debit_id = debit.inserted_primary_key[0]
-
-        # credit side
-        credit = conn.execute(
-            insert(transaction).values(
-                account_id=to_account_id,
-                amount=amount,
-                txn_date=txn_date,
-                category_id=category_id,
-                transfer_pair_id=debit_id,
-                status="cleared",
-                needs_review=False,
-                updated_at=datetime.now()
-            )
-        )
-        credit_id = credit.inserted_primary_key[0]
-
-        # link debit back to credit
-        conn.execute(
-            update(transaction)
-            .where(transaction.c.transaction_id == debit_id)
-            .values(transfer_pair_id=credit_id)
+        return create_transaction_with_conn(
+            conn=conn,
+            account_id=account_id,
+            amount_minor=amount_minor,
+            transaction_date=transaction_date,
+            category_id=category_id,
+            budget_item_id=budget_item_id,
+            payee=payee,
+            notes=notes,
+            recurring_rule_id=recurring_rule_id,
+            transfer_id=transfer_id,
         )
 
-        return debit_id, credit_id
+
+def create_transaction_with_conn(
+    conn,
+    account_id: int,
+    amount_minor: int,
+    transaction_date,
+    category_id: int,
+    budget_item_id: int | None = None,
+    payee: str | None = None,
+    notes: str | None = None,
+    recurring_rule_id: int | None = None,
+    transfer_id: int | None = None,
+):
+    cursor = execute(
+        conn,
+        """
+        INSERT INTO "transaction" (
+            account_id, category_id, budget_item_id, payee, amount_minor,
+            transaction_date, notes, created_at, recurring_rule_id, transfer_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            account_id,
+            category_id,
+            budget_item_id,
+            payee,
+            amount_minor,
+            transaction_date,
+            notes,
+            datetime.now(),
+            recurring_rule_id,
+            transfer_id,
+        ),
+    )
+    return cursor.lastrowid
+
 
 def update_transaction(transaction_id: int, **kwargs):
-    kwargs["updated_at"] = datetime.now()
     with get_conn() as conn:
-        conn.execute(
-            update(transaction)
-            .where(transaction.c.transaction_id == transaction_id)
-            .values(**kwargs)
+        update_transaction_with_conn(conn, transaction_id, **kwargs)
+
+
+def update_transaction_with_conn(conn, transaction_id: int, **kwargs):
+    allowed = {
+        "account_id",
+        "category_id",
+        "budget_item_id",
+        "payee",
+        "amount_minor",
+        "transaction_date",
+        "notes",
+        "recurring_rule_id",
+        "transfer_id",
+    }
+    clean_values = {key: value for key, value in kwargs.items() if key in allowed}
+
+    statement = build_update(
+        '"transaction"',
+        "transaction_id",
+        transaction_id,
+        clean_values,
+    )
+    if statement is None:
+        return None
+
+    sql, params = statement
+    execute(conn, sql, params)
+
+
+def delete_transaction(transaction_id: int):
+    with get_conn() as conn:
+        execute(
+            conn,
+            'DELETE FROM "transaction" WHERE transaction_id = ?',
+            (transaction_id,),
         )
 
-def flag_for_review(transaction_id: int):
+
+def get_transactions_by_transfer(transfer_id: int):
     with get_conn() as conn:
-        conn.execute(
-            update(transaction)
-            .where(transaction.c.transaction_id == transaction_id)
-            .values(needs_review=True, updated_at=datetime.now())
-        )
+        rows = execute(
+            conn,
+            """
+            SELECT *
+            FROM "transaction"
+            WHERE transfer_id = ?
+            ORDER BY transaction_id
+            """,
+            (transfer_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
+
+
+def delete_transactions_by_transfer_with_conn(conn, transfer_id: int):
+    execute(
+        conn,
+        'DELETE FROM "transaction" WHERE transfer_id = ?',
+        (transfer_id,),
+    )

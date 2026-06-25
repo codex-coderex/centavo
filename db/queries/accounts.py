@@ -1,47 +1,78 @@
-from sqlalchemy import select, insert, update
-from db.tables import account
-from db.connection import get_conn
+from datetime import datetime
 
-def get_accounts(user_id: int):
+from db.connection import build_update, execute, get_conn, row_to_dict, rows_to_dicts
+
+
+def get_accounts(user_id: int, active_only: bool = True):
+    sql = "SELECT * FROM account WHERE user_id = ?"
+    params = [user_id]
+
+    if active_only:
+        sql += " AND status = ?"
+        params.append("active")
+
+    sql += " ORDER BY name"
+
     with get_conn() as conn:
-        result = conn.execute(
-            select(account).where(account.c.user_id == user_id)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(conn, sql, params).fetchall()
+        return rows_to_dicts(rows)
+
 
 def get_account(account_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(account).where(account.c.account_id == account_id)
-        )
-        row = result.first()
-        return dict(row._mapping) if row else None
+        row = execute(
+            conn,
+            "SELECT * FROM account WHERE account_id = ?",
+            (account_id,),
+        ).fetchone()
+        return row_to_dict(row)
 
-def create_account(user_id: int, name: str, type: str, currency_code: str):
+
+def get_active_account_by_name(user_id: int, name: str, exclude_account_id: int | None = None):
+    sql = """
+        SELECT *
+        FROM account
+        WHERE user_id = ? AND name = ? AND status = 'active'
+    """
+    params = [user_id, name]
+
+    if exclude_account_id is not None:
+        sql += " AND account_id != ?"
+        params.append(exclude_account_id)
+
     with get_conn() as conn:
-        result = conn.execute(
-            insert(account).values(
-                user_id=user_id,
-                name=name,
-                type=type,
-                currency_code=currency_code,
-                status="active"
+        row = execute(conn, sql, params).fetchone()
+        return row_to_dict(row)
+
+
+def create_account(
+    user_id: int,
+    name: str,
+    type: str,
+    opening_balance_minor: int = 0,
+):
+    with get_conn() as conn:
+        cursor = execute(
+            conn,
+            """
+            INSERT INTO account (
+                user_id, name, type, opening_balance_minor, created_at, status
             )
+            VALUES (?, ?, ?, ?, ?, 'active')
+            """,
+            (user_id, name, type, opening_balance_minor, datetime.now()),
         )
-        return result.inserted_primary_key[0]
+        return cursor.lastrowid
+
 
 def update_account(account_id: int, **kwargs):
-    with get_conn() as conn:
-        conn.execute(
-            update(account)
-            .where(account.c.account_id == account_id)
-            .values(**kwargs)
-        )
+    allowed = {"name", "type", "opening_balance_minor", "status"}
+    clean_values = {key: value for key, value in kwargs.items() if key in allowed}
 
-def archive_account(account_id: int):
+    statement = build_update("account", "account_id", account_id, clean_values)
+    if statement is None:
+        return None
+
+    sql, params = statement
     with get_conn() as conn:
-        conn.execute(
-            update(account)
-            .where(account.c.account_id == account_id)
-            .values(status="archived")
-        )
+        execute(conn, sql, params)
