@@ -13,6 +13,11 @@
 		groupType = $bindable(),
 		error,
 		saving,
+		eyebrow = 'Make category group',
+		title = 'New category group',
+		submitLabel = 'Create group',
+		savingLabel = 'Creating...',
+		lockType = false,
 		onClose,
 		onSubmit
 	} = $props<{
@@ -20,6 +25,11 @@
 		groupType: CategoryGroupType;
 		error: string;
 		saving: boolean;
+		eyebrow?: string;
+		title?: string;
+		submitLabel?: string;
+		savingLabel?: string;
+		lockType?: boolean;
 		onClose: () => void;
 		onSubmit: () => void | Promise<void>;
 	}>();
@@ -35,8 +45,8 @@
 	>
 		<div class="flex items-start justify-between gap-4">
 			<div>
-				<p class="dashboard-eyebrow text-xs font-semibold uppercase tracking-widest">Make category group</p>
-				<h2 class="mt-1 text-xl font-bold">New category group</h2>
+				<p class="dashboard-eyebrow text-xs font-semibold uppercase tracking-widest">{eyebrow}</p>
+				<h2 class="mt-1 text-xl font-bold">{title}</h2>
 			</div>
 			<button class="secondary-action" type="button" onclick={onClose}>Close</button>
 		</div>
@@ -53,7 +63,11 @@
 				options={categoryGroupTypeOptions}
 				placeholder="Select a category group type"
 				searchPlaceholder="Search category group types..."
+				disabled={lockType}
 			/>
+			{#if lockType}
+				<p class="text-muted text-xs">Group type cannot be changed after creation.</p>
+			{/if}
 		</label>
 
 		{#if error}
@@ -63,7 +77,7 @@
 		{/if}
 
 		<button class="primary-action mt-6 w-full" type="submit" disabled={saving}>
-			Create group
+			{saving ? savingLabel : submitLabel}
 		</button>
 	</form>
 </div>

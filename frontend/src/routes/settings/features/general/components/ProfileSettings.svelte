@@ -4,6 +4,7 @@
 	let { users, loading } = $props<{
 		users: User[];
 		loading: boolean;
+		onRefresh?: () => Promise<void>;
 	}>();
 </script>
 
@@ -15,10 +16,15 @@
 		<p class="text-muted mt-5 text-sm">Loading user...</p>
 	{:else}
 		<div class="mt-5 space-y-3">
-			{#each users as user}
-				<div class="rounded-lg border p-4" style="border-color: var(--app-border); background: var(--app-surface-strong)">
-					<p class="font-medium">{user.name}</p>
-					<p class="text-muted mt-1 text-xs">User ID: {user.user_id}</p>
+			{#each users as user (user.user_id)}
+				<div
+					class="rounded-lg border p-4"
+					style="border-color: var(--app-border); background: var(--app-surface-strong)"
+				>
+					<div>
+						<p class="font-medium">{user.name}</p>
+						<p class="text-muted mt-1 text-xs">User ID: {user.user_id}</p>
+					</div>
 				</div>
 			{:else}
 				<p class="text-muted text-sm">No user found.</p>

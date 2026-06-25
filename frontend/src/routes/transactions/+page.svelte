@@ -3,12 +3,15 @@
 	import { getAccounts, type Account } from '$lib/api/accounts';
 	import { getBudgetItems, getBudgets, type Budget, type BudgetItem } from '$lib/api/budgets';
 	import { getAllCategories, getCategoryGroups, type Category, type CategoryGroup, type CategoryGroupType } from '$lib/api/categories';
+	import PageHeader from '$lib/shared/components/PageHeader.svelte';
+	import ToastOnChange from '$lib/shared/components/ToastOnChange.svelte';
 	import {
 		deleteTransaction,
 		deleteTransfer,
 		getTransactionsByUser,
 		type Transaction
 	} from '$lib/api/transactions';
+	import { getTags, getTransactionTags, type Tag } from '$lib/api/tags';
 	import TransactionModals from './features/modals/TransactionModals.svelte';
 	import TransactionsFilterPanel from './features/components/TransactionsFilterPanel.svelte';
 	import TransactionsTable from './features/components/TransactionsTable.svelte';
@@ -33,6 +36,8 @@
 	let budgetItems: BudgetItem[] = $state([]);
 	let categories: Category[] = $state([]);
 	let categoryGroups: CategoryGroup[] = $state([]);
+	let tags: Tag[] = $state([]);
+	let transactionTagIds: Record<number, number[]> = $state({});
 	let transactions: Transaction[] = $state([]);
 	let loading = $state(true);
 	let error = $state('');
@@ -117,12 +122,13 @@
 		error = '';
 
 		try {
-			const [activeAccountRows, accountRows, budgetRows, categoryRows, groupRows, transactionRows] = await Promise.all([
+			const [activeAccountRows, accountRows, budgetRows, categoryRows, groupRows, tagRows, transactionRows] = await Promise.all([
 				getAccounts(userId),
 				getAccounts(userId, false),
 				getBudgets(userId),
 				getAllCategories(userId),
 				getCategoryGroups(userId),
+				getTags(userId),
 				getTransactionsByUser(userId)
 			]);
 
@@ -134,7 +140,20 @@
 			)).flat();
 			categories = categoryRows;
 			categoryGroups = groupRows;
+			tags = tagRows;
 			transactions = transactionRows;
+			const transactionTagRows = await Promise.all(
+				transactionRows.map(async (transaction) => ({
+					transactionId: transaction.transaction_id,
+					tags: await getTransactionTags(transaction.transaction_id)
+				}))
+			);
+			transactionTagIds = Object.fromEntries(
+				transactionTagRows.map((row) => [
+					row.transactionId,
+					row.tags.map((tag) => tag.tag_id)
+				])
+			);
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -205,20 +224,22 @@
 	});
 </script>
 
-<section class="transaction-page flex min-h-screen flex-col gap-5 px-5 py-4">
-	<div bind:this={filterPanelRegion} class="app-page-header relative flex flex-wrap items-center justify-between gap-4">
-		<h1 class="text-2xl font-bold tracking-tight">Transactions</h1>
+<ToastOnChange {error} {notice} />
 
-		<TransactionsToolbar
-			bind:search={filterSearch}
-			bind:dateFrom={filterDateFrom}
-			bind:dateTo={filterDateTo}
-			filterCount={activeFilterCount}
-			bind:showSearch={showSearchTools}
-			bind:showDate={showDateTools}
-			bind:showFilters={showFilterPanel}
-			onAdd={openCreateModal}
-		/>
+<section class="transaction-page flex min-h-screen flex-col">
+	<div bind:this={filterPanelRegion} class="relative">
+		<PageHeader eyebrow="Ledger" title="Transactions" subtitle={`${filteredTransactions.length} shown · ${transactions.length} total`}>
+			<TransactionsToolbar
+				bind:search={filterSearch}
+				bind:dateFrom={filterDateFrom}
+				bind:dateTo={filterDateTo}
+				filterCount={activeFilterCount}
+				bind:showSearch={showSearchTools}
+				bind:showDate={showDateTools}
+				bind:showFilters={showFilterPanel}
+				onAdd={openCreateModal}
+			/>
+		</PageHeader>
 
 		{#if showFilterPanel}
 			<TransactionsFilterPanel
@@ -238,32 +259,24 @@
 		{/if}
 	</div>
 
-	{#if error}
-		<div class="rounded-2xl border p-4 text-sm money-negative" style="border-color: rgba(189, 74, 63, 0.3); background: rgba(189, 74, 63, 0.08)">
-			{error}
+	<div class="flex flex-col gap-5 p-5">
+		<div class="transaction-table-card overflow-visible">
+			<TransactionsTable
+				transactions={filteredTransactions}
+				{loading}
+				{formatDate}
+				{formatGroupDate}
+				{formatMoney}
+				{accountName}
+				{categoryName}
+				{categoryGroupName}
+				{isTransfer}
+				{tags}
+				{transactionTagIds}
+				onEdit={openEditModal}
+				onDelete={removeTransaction}
+			/>
 		</div>
-	{/if}
-
-	{#if notice}
-		<div class="rounded-2xl border p-4 text-sm money-positive" style="border-color: rgba(47, 143, 107, 0.3); background: rgba(47, 143, 107, 0.08)">
-			{notice}
-		</div>
-	{/if}
-
-	<div class="transaction-table-card overflow-visible">
-		<TransactionsTable
-			transactions={filteredTransactions}
-			{loading}
-			{formatDate}
-			{formatGroupDate}
-			{formatMoney}
-			{accountName}
-			{categoryName}
-			{categoryGroupName}
-			{isTransfer}
-			onEdit={openEditModal}
-			onDelete={removeTransaction}
-		/>
 	</div>
 </section>
 
@@ -278,6 +291,8 @@
 	{budgetItems}
 	{categories}
 	{categoryGroups}
+	{tags}
+	{transactionTagIds}
 	{categoryName}
 	onRefresh={loadPage}
 	onNotice={(message) => notice = message}

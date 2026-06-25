@@ -13,6 +13,7 @@
 		type CategoryGroup,
 		type CategoryGroupType
 	} from '$lib/api/categories';
+	import ToastOnChange from '$lib/shared/components/ToastOnChange.svelte';
 	import CategoryGroupModal from '../modals/CategoryGroupModal.svelte';
 	import CategoryModal from '../modals/CategoryModal.svelte';
 
@@ -33,6 +34,7 @@
 
 	let showGroupModal = $state(false);
 	let showCategoryModal = $state(false);
+	let editingGroup: CategoryGroup | null = $state(null);
 
 	let groupName = $state('');
 	let groupType: CategoryGroupType = $state('expense');
@@ -52,6 +54,7 @@
 	function resetGroupModal() {
 		groupName = '';
 		groupType = 'expense';
+		editingGroup = null;
 	}
 
 	function resetCategoryModal() {
@@ -68,6 +71,16 @@
 		showGroupModal = true;
 	}
 
+	function openEditGroupModal(group: CategoryGroup) {
+		error = '';
+		modalError = '';
+		notice = '';
+		editingGroup = group;
+		groupName = group.name;
+		groupType = group.type;
+		showGroupModal = true;
+	}
+
 	function openCategoryModal() {
 		error = '';
 		modalError = '';
@@ -79,6 +92,7 @@
 	function closeModals() {
 		showGroupModal = false;
 		showCategoryModal = false;
+		editingGroup = null;
 		modalError = '';
 		saving = false;
 	}
@@ -114,13 +128,20 @@
 		saving = true;
 
 		try {
-			await createCategoryGroup({
-				user_id: userId,
-				name: groupName.trim(),
-				type: groupType
-			});
+			if (editingGroup) {
+				await updateCategoryGroup(editingGroup.group_id, {
+					name: groupName.trim()
+				});
+				notice = 'Category group renamed.';
+			} else {
+				await createCategoryGroup({
+					user_id: userId,
+					name: groupName.trim(),
+					type: groupType
+				});
+				notice = 'Category group created.';
+			}
 
-			notice = 'Category group created.';
 			closeModals();
 			await loadCategories();
 		} catch (err) {
@@ -231,19 +252,9 @@
 	onMount(loadCategories);
 </script>
 
+<ToastOnChange {error} {notice} />
+
 <section class="flex flex-col gap-4">
-	{#if error}
-		<div class="rounded-2xl border p-4 text-sm money-negative" style="border-color: rgba(189, 74, 63, 0.3); background: rgba(189, 74, 63, 0.08)">
-			{error}
-		</div>
-	{/if}
-
-	{#if notice}
-		<div class="rounded-2xl border p-4 text-sm money-positive" style="border-color: rgba(47, 143, 107, 0.3); background: rgba(47, 143, 107, 0.08)">
-			{notice}
-		</div>
-	{/if}
-
 	<div class="dashboard-card overflow-hidden">
 		<div class="flex flex-wrap items-start justify-between gap-4 border-b px-6 py-5" style="border-color: var(--app-border)">
 			<div>
@@ -291,6 +302,14 @@
 									</div>
 
 									<div class="flex flex-wrap justify-end gap-2">
+										<button
+											class="secondary-action"
+											type="button"
+											onclick={() => openEditGroupModal(group)}
+										>
+											Edit
+										</button>
+
 										<button
 											class="secondary-action"
 											type="button"
@@ -360,6 +379,11 @@
 	<CategoryGroupModal
 		bind:groupName
 		bind:groupType
+		title={editingGroup ? 'Edit category group' : 'New category group'}
+		eyebrow={editingGroup ? 'Rename category group' : 'Make category group'}
+		submitLabel={editingGroup ? 'Save group' : 'Create group'}
+		savingLabel={editingGroup ? 'Saving...' : 'Creating...'}
+		lockType={editingGroup !== null}
 		error={modalError}
 		{saving}
 		onClose={closeModals}

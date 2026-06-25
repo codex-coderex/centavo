@@ -2,7 +2,7 @@
 	import type { Account } from '$lib/api/accounts';
 	import type { Category, CategoryGroup } from '$lib/api/categories';
 	import type { RecurringRule } from '$lib/api/recurring';
-	import { formatDate, formatMoney, frequencyLabel, isRuleDue } from '../utils/recurringFormat';
+	import { formatDate, formatMoney, frequencyLabel } from '../utils/recurringFormat';
 
 	let {
 		recurringRules,
@@ -13,7 +13,9 @@
 		onPause,
 		onResume,
 		onGenerate,
-		onEdit
+		onEdit,
+		onDeactivate,
+		onDelete
 	} = $props<{
 		recurringRules: RecurringRule[];
 		accounts: Account[];
@@ -24,6 +26,8 @@
 		onResume: (rule: RecurringRule) => void | Promise<void>;
 		onGenerate: (rule: RecurringRule) => void | Promise<void>;
 		onEdit: (rule: RecurringRule) => void;
+		onDeactivate: (rule: RecurringRule) => void | Promise<void>;
+		onDelete: (rule: RecurringRule) => void | Promise<void>;
 	}>();
 
 	function accountName(accountId: number) {
@@ -49,6 +53,47 @@
 		if (type === 'income') return 'bg-emerald-100 text-emerald-700';
 		return 'bg-(--app-soft) text-(--app-primary)';
 	}
+
+	type SortKey = 'name' | 'category' | 'account' | 'frequency' | 'next_due_date' | 'status' | 'amount' | 'created';
+	let sortKey: SortKey = $state('created');
+	let sortDirection: 'asc' | 'desc' = $state('desc');
+
+	function sortValue(rule: RecurringRule, key: SortKey) {
+		if (key === 'name') return rule.name.toLowerCase();
+		if (key === 'category') return categoryName(rule.category_id).toLowerCase();
+		if (key === 'account') return accountName(rule.account_id).toLowerCase();
+		if (key === 'frequency') return `${rule.frequency_unit}-${rule.interval}`;
+		if (key === 'next_due_date') return rule.next_due_date;
+		if (key === 'status') return rule.status;
+		if (key === 'amount') return rule.expected_amount_minor;
+		return rule.recurring_rule_id;
+	}
+
+	function setSort(key: SortKey) {
+		if (sortKey === key) {
+			sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+		} else {
+			sortKey = key;
+			sortDirection = key === 'amount' || key === 'created' ? 'desc' : 'asc';
+		}
+	}
+
+	function sortMark(key: SortKey) {
+		if (sortKey !== key) return '↕';
+		return sortDirection === 'asc' ? '↑' : '↓';
+	}
+
+	let sortedRules = $derived(
+		[...recurringRules].sort((a: RecurringRule, b: RecurringRule) => {
+			const left = sortValue(a, sortKey);
+			const right = sortValue(b, sortKey);
+			const result = typeof left === 'number' && typeof right === 'number'
+				? left - right
+				: String(left).localeCompare(String(right));
+
+			return sortDirection === 'asc' ? result : -result;
+		})
+	);
 </script>
 
 <div class="overflow-hidden rounded-2xl border bg-(--app-surface)" style="border-color: var(--app-border); box-shadow: var(--shadow-soft)">
@@ -61,26 +106,21 @@
 			<table class="w-full min-w-[980px] border-collapse text-left text-sm">
 				<thead>
 					<tr class="border-b text-xs font-bold uppercase tracking-widest text-muted" style="border-color: var(--app-border)">
-						<th class="px-5 py-4">Merchant</th>
-						<th class="px-5 py-4">Category</th>
-						<th class="px-5 py-4">Account</th>
-						<th class="px-5 py-4">Frequency</th>
-						<th class="px-5 py-4">Next Due</th>
-						<th class="px-5 py-4">Status</th>
-						<th class="px-5 py-4 text-right">Amount</th>
+						<th class="px-5 py-4"><button class="sortable-header" type="button" onclick={() => setSort('name')}>Merchant {sortMark('name')}</button></th>
+						<th class="px-5 py-4"><button class="sortable-header" type="button" onclick={() => setSort('category')}>Category {sortMark('category')}</button></th>
+						<th class="px-5 py-4"><button class="sortable-header" type="button" onclick={() => setSort('account')}>Account {sortMark('account')}</button></th>
+						<th class="px-5 py-4"><button class="sortable-header" type="button" onclick={() => setSort('frequency')}>Frequency {sortMark('frequency')}</button></th>
+						<th class="px-5 py-4"><button class="sortable-header" type="button" onclick={() => setSort('next_due_date')}>Next Due {sortMark('next_due_date')}</button></th>
+						<th class="px-5 py-4"><button class="sortable-header" type="button" onclick={() => setSort('status')}>Status {sortMark('status')}</button></th>
+						<th class="px-5 py-4 text-right"><button class="sortable-header ml-auto" type="button" onclick={() => setSort('amount')}>Amount {sortMark('amount')}</button></th>
 						<th class="px-5 py-4 text-right">Actions</th>
 					</tr>
 				</thead>
 				<tbody>
-					{#each recurringRules as rule}
-						<tr class={isRuleDue(rule) ? 'bg-blue-50/70' : ''}>
+					{#each sortedRules as rule}
+						<tr>
 							<td class="px-5 py-4 font-semibold">
-								<div class="flex items-center gap-2">
-									<span>{rule.name || 'Recurring item'}</span>
-									{#if isRuleDue(rule)}
-										<span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">Due</span>
-									{/if}
-								</div>
+								{rule.name || 'Recurring item'}
 							</td>
 							<td class="px-5 py-4">
 								<span class={`rounded-full px-2 py-1 text-xs font-medium ${categoryPillClass(rule.category_id)}`}>
@@ -112,10 +152,16 @@
 									{#if rule.status === 'active'}
 										<button class="transaction-row-action" type="button" onclick={() => onPause(rule)}>Pause</button>
 										<button class="transaction-row-action" type="button" onclick={() => onGenerate(rule)}>Generate Now</button>
+										<button class="transaction-row-action danger" type="button" onclick={() => onDeactivate(rule)}>Deactivate</button>
 									{:else if rule.status === 'paused'}
 										<button class="transaction-row-action" type="button" onclick={() => onResume(rule)}>Resume</button>
+										<button class="transaction-row-action danger" type="button" onclick={() => onDeactivate(rule)}>Deactivate</button>
+									{:else}
+										<button class="transaction-row-action danger" type="button" onclick={() => onDelete(rule)}>Delete</button>
 									{/if}
-									<button class="transaction-row-action" type="button" onclick={() => onEdit(rule)}>Edit</button>
+									{#if rule.status !== 'inactive'}
+										<button class="transaction-row-action" type="button" onclick={() => onEdit(rule)}>Edit</button>
+									{/if}
 								</div>
 							</td>
 						</tr>

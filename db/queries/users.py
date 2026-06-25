@@ -27,15 +27,3 @@ def create_user(name: str):
             (name, datetime.now()),
         )
         return cursor.lastrowid
-
-
-def update_user(user_id: int, **kwargs):
-    clean_values = {key: value for key, value in kwargs.items() if key == "name"}
-
-    statement = build_update("user", "user_id", user_id, clean_values)
-    if statement is None:
-        return None
-
-    sql, params = statement
-    with get_conn() as conn:
-        execute(conn, sql, params)

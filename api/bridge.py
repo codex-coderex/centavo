@@ -20,9 +20,6 @@ class FinanceApi:
     def create_user(self, name):
         return users.create_user(name)
 
-    def update_user(self, user_id, name=None):
-        return users.update_user(user_id, name=name)
-
 
     # Accounts
     def get_accounts(self, user_id, active_only=True):
@@ -364,6 +361,9 @@ class FinanceApi:
 
     def deactivate_recurring_rule(self, recurring_rule_id):
         return recurring.deactivate_recurring_rule(recurring_rule_id)
+
+    def delete_recurring_rule(self, recurring_rule_id):
+        return recurring.delete_recurring_rule(recurring_rule_id)
 
     def generate_transaction(self, recurring_rule_id):
         return recurring.generate_transaction(recurring_rule_id)

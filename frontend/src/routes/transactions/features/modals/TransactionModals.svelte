@@ -3,6 +3,11 @@
 	import type { Budget, BudgetItem } from '$lib/api/budgets';
 	import type { Category, CategoryGroup, CategoryGroupType } from '$lib/api/categories';
 	import {
+		addTagToTransaction,
+		removeTagFromTransaction,
+		type Tag
+	} from '$lib/api/tags';
+	import {
 		createTransaction,
 		createTransfer,
 		updateTransaction,
@@ -23,6 +28,8 @@
 		budgetItems,
 		categories,
 		categoryGroups,
+		tags,
+		transactionTagIds,
 		categoryName,
 		onRefresh,
 		onNotice
@@ -37,6 +44,8 @@
 		budgetItems: BudgetItem[];
 		categories: Category[];
 		categoryGroups: CategoryGroup[];
+		tags: Tag[];
+		transactionTagIds: Record<number, number[]>;
 		categoryName: (categoryId: number) => string;
 		onRefresh: () => Promise<void>;
 		onNotice: (message: string) => void;
@@ -55,6 +64,7 @@
 	let createDate = $state('');
 	let createPayee = $state('');
 	let createNotes = $state('');
+	let createTagIds: number[] = $state([]);
 
 	let editAccountId = $state(0);
 	let editToAccountId = $state(0);
@@ -67,6 +77,7 @@
 	let editDate = $state('');
 	let editPayee = $state('');
 	let editNotes = $state('');
+	let editTagIds: number[] = $state([]);
 
 	let wasCreateOpen = $state(false);
 	let lastEditingTransactionId = $state<number | null>(null);
@@ -104,6 +115,7 @@
 		createDate = todayInputValue();
 		createPayee = '';
 		createNotes = '';
+		createTagIds = [];
 	}
 
 	function resetEditModal(transaction: Transaction) {
@@ -128,6 +140,18 @@
 		editDate = dateInputValue(transaction.transaction_date);
 		editPayee = transaction.payee ?? '';
 		editNotes = transaction.notes ?? '';
+		editTagIds = transactionTagIds[transaction.transaction_id] ?? [];
+	}
+
+	async function syncTransactionTags(transactionId: number, nextTagIds: number[]) {
+		const currentTagIds: number[] = transactionTagIds[transactionId] ?? [];
+		const toAdd = nextTagIds.filter((tagId: number) => !currentTagIds.includes(tagId));
+		const toRemove = currentTagIds.filter((tagId: number) => !nextTagIds.includes(tagId));
+
+		await Promise.all([
+			...toAdd.map((tagId: number) => addTagToTransaction(transactionId, tagId)),
+			...toRemove.map((tagId: number) => removeTagFromTransaction(transactionId, tagId))
+		]);
 	}
 
 	$effect(() => {
@@ -207,7 +231,7 @@
 
 		try {
 			if (createMode === 'transfer') {
-				await createTransfer({
+				const result = await createTransfer({
 					from_account_id: createAccountId,
 					to_account_id: createToAccountId,
 					category_id: createCategoryId,
@@ -216,8 +240,12 @@
 					payee: createPayee || 'Transfer',
 					notes: createNotes || null
 				});
+				await Promise.all([
+					syncTransactionTags(result.debit_transaction_id, createTagIds),
+					syncTransactionTags(result.credit_transaction_id, createTagIds)
+				]);
 			} else {
-				await createTransaction({
+				const result = await createTransaction({
 					account_id: createAccountId,
 					category_id: createCategoryId,
 					budget_item_id: createMode === 'expense' && createBudgetId !== 'none' && createBudgetItemId !== 'none'
@@ -228,6 +256,7 @@
 					payee: createPayee || null,
 					notes: createNotes || null
 				});
+				await syncTransactionTags(result.transaction_id, createTagIds);
 			}
 
 			onNotice(createMode === 'transfer' ? 'Transfer created.' : 'Transaction created.');
@@ -278,6 +307,17 @@
 					payee: editPayee || null,
 					notes: editNotes || null
 				});
+				const pairedTransferTransaction = transactions.find(
+					(row: Transaction) =>
+						row.transfer_id === editingTransaction?.transfer_id
+						&& row.transaction_id !== editingTransaction.transaction_id
+				);
+				await Promise.all([
+					syncTransactionTags(editingTransaction.transaction_id, editTagIds),
+					pairedTransferTransaction
+						? syncTransactionTags(pairedTransferTransaction.transaction_id, editTagIds)
+						: Promise.resolve()
+				]);
 			} else {
 				await updateTransaction(editingTransaction.transaction_id, {
 					account_id: editAccountId,
@@ -288,6 +328,7 @@
 					payee: editPayee || null,
 					notes: editNotes || null
 				});
+				await syncTransactionTags(editingTransaction.transaction_id, editTagIds);
 			}
 
 			onNotice(isTransfer(editingTransaction) ? 'Transfer updated.' : 'Transaction updated.');
@@ -322,6 +363,8 @@
 		error={modalError}
 		{saving}
 		{categoryName}
+		{tags}
+		bind:selectedTagIds={createTagIds}
 		onClose={closeCreateModal}
 		onSubmit={submitCreateTransaction}
 	/>
@@ -348,6 +391,8 @@
 		error={modalError}
 		{saving}
 		{categoryName}
+		{tags}
+		bind:selectedTagIds={editTagIds}
 		eyebrow={isTransfer(editingTransaction) ? 'Edit transfer' : 'Edit transaction'}
 		title={editingTransaction.payee ?? 'No payee'}
 		submitLabel="Save changes"

@@ -18,6 +18,3 @@ export function createUser(payload: { name: string }) {
 	return callApi<{ user_id: number }>('create_user', payload.name);
 }
 
-export function updateUser(userId: number, payload: { name?: string } = {}) {
-	return callApi<{ status: string }>('update_user', userId, payload.name ?? null);
-}

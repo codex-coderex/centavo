@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { createTag, deleteTag, getTags, updateTag, type Tag } from '$lib/api/tags';
+	import ToastOnChange from '$lib/shared/components/ToastOnChange.svelte';
 	import TagModal from '../modals/TagModal.svelte';
 
 	const userId = 1;
@@ -98,19 +99,9 @@
 	onMount(loadTags);
 </script>
 
+<ToastOnChange {error} {notice} />
+
 <section class="flex flex-col gap-4">
-	{#if error}
-		<div class="rounded-2xl border p-4 text-sm money-negative" style="border-color: rgba(189, 74, 63, 0.3); background: rgba(189, 74, 63, 0.08)">
-			{error}
-		</div>
-	{/if}
-
-	{#if notice}
-		<div class="rounded-2xl border p-4 text-sm money-positive" style="border-color: rgba(47, 143, 107, 0.3); background: rgba(47, 143, 107, 0.08)">
-			{notice}
-		</div>
-	{/if}
-
 	<div class="dashboard-card overflow-hidden">
 		<div class="flex flex-wrap items-start justify-between gap-4 border-b px-6 py-5" style="border-color: var(--app-border)">
 			<div>

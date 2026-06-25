@@ -2,11 +2,14 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import PageHeader from '$lib/shared/components/PageHeader.svelte';
+	import ToastOnChange from '$lib/shared/components/ToastOnChange.svelte';
 	import {
 		deleteBudget,
 		deleteBudgetItem,
 		getBudget,
 		getBudgetItems,
+		getBudgets,
 		type Budget,
 		type BudgetItem
 	} from '$lib/api/budgets';
@@ -14,10 +17,13 @@
 	import { getTransactionsByUser, type Transaction } from '$lib/api/transactions';
 	import BudgetItemsTable from '../features/components/BudgetItemsTable.svelte';
 	import BudgetModals from '../features/modals/BudgetModals.svelte';
+	import { periodLabel } from '../features/utils/budgetFormat';
 
 	const userId = 1;
 
 	let budget: Budget | null = $state(null);
+	let allBudgets: Budget[] = $state([]);
+	let allBudgetItems: BudgetItem[] = $state([]);
 	let budgetItems: BudgetItem[] = $state([]);
 	let categories: Category[] = $state([]);
 	let categoryGroups: CategoryGroup[] = $state([]);
@@ -49,8 +55,9 @@
 		error = '';
 
 		try {
-			const [budgetRow, categoryRows, groupRows, transactionRows] = await Promise.all([
+			const [budgetRow, budgetRows, categoryRows, groupRows, transactionRows] = await Promise.all([
 				getBudget(selectedBudgetId),
+				getBudgets(userId),
 				getAllCategories(userId),
 				getCategoryGroups(userId),
 				getTransactionsByUser(userId)
@@ -64,10 +71,14 @@
 			}
 
 			budget = budgetRow;
+			allBudgets = budgetRows;
+			allBudgetItems = (await Promise.all(
+				budgetRows.map((row: Budget) => getBudgetItems(row.budget_id))
+			)).flat();
+			budgetItems = allBudgetItems.filter((item: BudgetItem) => item.budget_id === selectedBudgetId);
 			categories = categoryRows;
 			categoryGroups = groupRows;
 			transactions = transactionRows;
-			await refreshBudgetItems();
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -80,6 +91,13 @@
 
 		try {
 			budgetItems = await getBudgetItems(selectedBudgetId);
+			if (allBudgets.length > 0) {
+				allBudgetItems = (await Promise.all(
+					allBudgets.map((row: Budget) => getBudgetItems(row.budget_id))
+				)).flat();
+			} else {
+				allBudgetItems = budgetItems;
+			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -146,36 +164,41 @@
 	onMount(loadPage);
 </script>
 
-<section class="budget-page flex min-h-screen flex-col gap-5 px-5 py-4">
-	{#if error}
-		<div class="rounded-2xl border p-4 text-sm money-negative" style="border-color: rgba(189, 74, 63, 0.3); background: rgba(189, 74, 63, 0.08)">
-			{error}
-		</div>
-	{/if}
+<ToastOnChange {error} {notice} />
 
-	{#if notice}
-		<div class="rounded-2xl border p-4 text-sm money-positive" style="border-color: rgba(47, 143, 107, 0.3); background: rgba(47, 143, 107, 0.08)">
-			{notice}
-		</div>
-	{/if}
-
-	{#if loading}
-		<p class="text-muted px-6 py-12 text-center text-sm">Loading budget...</p>
+<section class="budget-page flex min-h-screen flex-col">
+	{#if budget}
+		<PageHeader
+			eyebrow="Budget"
+			title={budget.name}
+			subtitle={`${budget.start_date.slice(0, 10)} - ${budget.end_date?.slice(0, 10) ?? 'ongoing'} · ${periodLabel(budget.period_type).toLowerCase()}`}
+		>
+			<button class="secondary-action" type="button" onclick={() => goto('/budgets')}>All budgets</button>
+			<button class="secondary-action" type="button" onclick={openEditBudget}>Edit</button>
+			<button class="danger-action" type="button" onclick={removeBudget}>Delete</button>
+			<button class="primary-action" type="button" onclick={openCreateBudgetItem}>+ Add item</button>
+		</PageHeader>
 	{:else}
-		<BudgetItemsTable
-			{budget}
-			items={budgetItems}
-			categories={expenseCategories}
-			{transactions}
-			loading={loadingItems}
-			onBack={() => goto('/budgets')}
-			onAddItem={openCreateBudgetItem}
-			onEditBudget={openEditBudget}
-			onDeleteBudget={removeBudget}
-			onEditItem={openEditBudgetItem}
-			onDeleteItem={removeBudgetItem}
-		/>
+		<PageHeader eyebrow="Budget" title="Budget" subtitle="Loading budget..." />
 	{/if}
+
+	<div class="flex flex-col gap-5 p-5">
+		{#if loading}
+			<p class="text-muted px-6 py-12 text-center text-sm">Loading budget...</p>
+		{:else}
+			<BudgetItemsTable
+				{budget}
+				items={budgetItems}
+				{allBudgets}
+				{allBudgetItems}
+				categories={expenseCategories}
+				{transactions}
+				loading={loadingItems}
+				onEditItem={openEditBudgetItem}
+				onDeleteItem={removeBudgetItem}
+			/>
+		{/if}
+	</div>
 </section>
 
 <BudgetModals

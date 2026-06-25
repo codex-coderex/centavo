@@ -255,6 +255,17 @@ def deactivate_recurring_rule(recurring_rule_id: int):
     return {"status": "inactive"}
 
 
+def delete_recurring_rule(recurring_rule_id: int):
+    recurring = recurring_q.get_recurring_rule(recurring_rule_id)
+    if recurring is None:
+        raise ValueError("Recurring rule does not exist")
+    if recurring["status"] != RecurringStatus.INACTIVE.value:
+        raise ValueError("Only inactive recurring rules can be deleted")
+
+    recurring_q.delete_recurring_rule(recurring_rule_id)
+    return {"status": "deleted"}
+
+
 def _generate_transaction_for_rule(
     recurring_rule_id: int,
     transaction_date,

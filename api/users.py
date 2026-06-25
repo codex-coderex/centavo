@@ -13,6 +13,3 @@ def get_user(user_id):
 def create_user(name):
     return safe(lambda: service.create_user(name))
 
-
-def update_user(user_id, name=None):
-    return safe(lambda: service.update_user(user_id, name=name))

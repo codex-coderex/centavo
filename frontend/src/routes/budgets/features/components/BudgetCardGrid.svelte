@@ -2,7 +2,7 @@
 	import type { Budget, BudgetItem } from '$lib/api/budgets';
 	import type { Transaction } from '$lib/api/transactions';
 	import { formatMoney, periodLabel } from '../utils/budgetFormat';
-	import { budgetProgress, itemsForBudget, plannedForBudget, spentForBudget } from '../utils/budgetTotals';
+	import { budgetProgress, itemsForBudget, plannedForBudgetWithRollover, spentForBudget } from '../utils/budgetTotals';
 
 	let {
 		budgets,
@@ -38,7 +38,7 @@
 	<div class="grid gap-4 lg:grid-cols-2">
 		{#each budgets as budget}
 			{@const items = itemsForBudget(budget, budgetItems)}
-			{@const planned = plannedForBudget(items)}
+			{@const planned = plannedForBudgetWithRollover(budget, budgets, budgetItems, transactions)}
 			{@const spent = spentForBudget(items, transactions)}
 			<button
 				class={`budget-card text-left ${selectedBudgetId === budget.budget_id ? 'selected' : ''}`}

@@ -61,6 +61,10 @@ def deactivate_recurring_rule(recurring_rule_id):
     return safe(lambda: service.deactivate_recurring_rule(recurring_rule_id))
 
 
+def delete_recurring_rule(recurring_rule_id):
+    return safe(lambda: service.delete_recurring_rule(recurring_rule_id))
+
+
 def generate_transaction(recurring_rule_id):
     return safe(lambda: service.generate_transaction(recurring_rule_id))
 

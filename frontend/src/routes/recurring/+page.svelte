@@ -3,6 +3,8 @@
 	import { getAccounts, type Account } from '$lib/api/accounts';
 	import { getAllCategories, getCategoryGroups, type Category, type CategoryGroup } from '$lib/api/categories';
 	import {
+		deactivateRecurringRule,
+		deleteRecurringRule,
 		generateTransaction,
 		getRecurringRules,
 		pauseRecurringRule,
@@ -23,6 +25,16 @@
 	let error = $state('');
 	let notice = $state('');
 	let showRuleModal = $state(false);
+	let showArchived = $state(false);
+
+	let visibleRecurringRules = $derived(
+		recurringRules.filter((rule: RecurringRule) =>
+			showArchived ? rule.status === 'inactive' : rule.status !== 'inactive'
+		)
+	);
+	let archivedRecurringRules = $derived(
+		recurringRules.filter((rule: RecurringRule) => rule.status === 'inactive')
+	);
 
 	async function loadPage() {
 		loading = true;
@@ -98,11 +110,47 @@
 		}
 	}
 
+	async function deactivateRule(rule: RecurringRule) {
+		if (!confirm(`Deactivate "${rule.name || 'this recurring rule'}"? It will stop generating transactions.`)) {
+			return;
+		}
+
+		error = '';
+		notice = '';
+
+		try {
+			await deactivateRecurringRule(rule.recurring_rule_id);
+			notice = 'Recurring rule deactivated.';
+			await loadPage();
+		} catch (err) {
+			error = err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	async function deleteRule(rule: RecurringRule) {
+		if (!confirm(`Delete "${rule.name || 'this recurring rule'}" permanently?`)) {
+			return;
+		}
+
+		error = '';
+		notice = '';
+
+		try {
+			await deleteRecurringRule(rule.recurring_rule_id);
+			notice = 'Recurring rule deleted.';
+			await loadPage();
+		} catch (err) {
+			error = err instanceof Error ? err.message : String(err);
+		}
+	}
+
 	onMount(loadPage);
 </script>
 
 <RecurringView
-	{recurringRules}
+	recurringRules={visibleRecurringRules}
+	archivedCount={archivedRecurringRules.length}
+	{showArchived}
 	{accounts}
 	{categories}
 	{categoryGroups}
@@ -110,10 +158,13 @@
 	{error}
 	{notice}
 	onAdd={openCreateRule}
+	onArchived={() => showArchived = !showArchived}
 	onPause={pauseRule}
 	onResume={resumeRule}
 	onGenerate={generateNow}
 	onEdit={openEditRule}
+	onDeactivate={deactivateRule}
+	onDelete={deleteRule}
 />
 
 <RecurringModals

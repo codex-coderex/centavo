@@ -139,3 +139,12 @@ def update_recurring_rule_with_conn(conn, recurring_rule_id: int, **kwargs):
 
     sql, params = statement
     execute(conn, sql, params)
+
+
+def delete_recurring_rule(recurring_rule_id: int):
+    with get_conn() as conn:
+        execute(
+            conn,
+            "DELETE FROM recurring_rule WHERE recurring_rule_id = ?",
+            (recurring_rule_id,),
+        )

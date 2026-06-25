@@ -2,11 +2,15 @@
 	import type { Account } from '$lib/api/accounts';
 	import type { Category, CategoryGroup } from '$lib/api/categories';
 	import type { RecurringRule } from '$lib/api/recurring';
+	import PageHeader from '$lib/shared/components/PageHeader.svelte';
+	import ToastOnChange from '$lib/shared/components/ToastOnChange.svelte';
 	import RecurringTable from './RecurringTable.svelte';
 	import RecurringToolbar from './RecurringToolbar.svelte';
 
 	let {
 		recurringRules,
+		archivedCount,
+		showArchived,
 		accounts,
 		categories,
 		categoryGroups,
@@ -14,12 +18,17 @@
 		error,
 		notice,
 		onAdd,
+		onArchived,
 		onPause,
 		onResume,
 		onGenerate,
-		onEdit
+		onEdit,
+		onDeactivate,
+		onDelete
 	} = $props<{
 		recurringRules: RecurringRule[];
+		archivedCount: number;
+		showArchived: boolean;
 		accounts: Account[];
 		categories: Category[];
 		categoryGroups: CategoryGroup[];
@@ -27,47 +36,44 @@
 		error: string;
 		notice: string;
 		onAdd: () => void;
+		onArchived: () => void;
 		onPause: (rule: RecurringRule) => void | Promise<void>;
 		onResume: (rule: RecurringRule) => void | Promise<void>;
 		onGenerate: (rule: RecurringRule) => void | Promise<void>;
 		onEdit: (rule: RecurringRule) => void;
+		onDeactivate: (rule: RecurringRule) => void | Promise<void>;
+		onDelete: (rule: RecurringRule) => void | Promise<void>;
 	}>();
 
 	let activeCount = $derived(recurringRules.filter((rule: RecurringRule) => rule.status === 'active').length);
 	let pausedCount = $derived(recurringRules.filter((rule: RecurringRule) => rule.status === 'paused').length);
 </script>
 
-<section class="budget-page flex min-h-screen flex-col gap-5 px-5 py-4">
-	<div class="app-page-header flex flex-wrap items-center justify-between gap-4">
-		<div>
-			<h1 class="text-2xl font-bold tracking-tight">Recurring</h1>
-			<p class="text-muted mt-1 text-sm">{activeCount} active · {pausedCount} paused</p>
-		</div>
+<ToastOnChange {error} {notice} />
 
-		<RecurringToolbar onAdd={onAdd} />
+<section class="budget-page flex min-h-screen flex-col">
+	<PageHeader eyebrow="Schedule" title="Recurring" subtitle={showArchived ? `${archivedCount} archived` : `${activeCount} active · ${pausedCount} paused`}>
+		<RecurringToolbar
+			{archivedCount}
+			{showArchived}
+			onAdd={onAdd}
+			onArchived={onArchived}
+		/>
+	</PageHeader>
+
+	<div class="flex flex-col gap-5 p-5">
+		<RecurringTable
+			{recurringRules}
+			{accounts}
+			{categories}
+			{categoryGroups}
+			{loading}
+			onPause={onPause}
+			onResume={onResume}
+			onGenerate={onGenerate}
+			onEdit={onEdit}
+			onDeactivate={onDeactivate}
+			onDelete={onDelete}
+		/>
 	</div>
-
-	{#if error}
-		<div class="rounded-2xl border p-4 text-sm money-negative" style="border-color: rgba(189, 74, 63, 0.3); background: rgba(189, 74, 63, 0.08)">
-			{error}
-		</div>
-	{/if}
-
-	{#if notice}
-		<div class="rounded-2xl border p-4 text-sm money-positive" style="border-color: rgba(47, 143, 107, 0.3); background: rgba(47, 143, 107, 0.08)">
-			{notice}
-		</div>
-	{/if}
-
-	<RecurringTable
-		{recurringRules}
-		{accounts}
-		{categories}
-		{categoryGroups}
-		{loading}
-		onPause={onPause}
-		onResume={onResume}
-		onGenerate={onGenerate}
-		onEdit={onEdit}
-	/>
 </section>

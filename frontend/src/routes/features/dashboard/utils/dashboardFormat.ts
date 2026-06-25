@@ -4,6 +4,7 @@ import type { Category, CategoryGroup } from '$lib/api/categories';
 import type { Goal, GoalAccount } from '$lib/api/goals';
 import type { RecurringRule } from '$lib/api/recurring';
 import type { Transaction } from '$lib/api/transactions';
+import { plannedForBudgetItemWithRollover } from '../../../budgets/features/utils/budgetTotals';
 
 export type DashboardPeriod = 'month' | 'year';
 
@@ -177,6 +178,13 @@ export function budgetSummaries(
 
 				return {
 					...item,
+					planned_amount_minor: plannedForBudgetItemWithRollover(
+						item,
+						budget,
+						budgets,
+						budgetItems,
+						transactions
+					),
 					category_name: category?.name ?? 'Unknown category',
 					group_name: group?.name ?? 'Other',
 					group_type: group?.type ?? 'expense',

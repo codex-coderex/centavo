@@ -97,6 +97,14 @@ export function deactivateRecurringRule(recurringRuleId: number) {
 	return callApi<{ status: string }>('deactivate_recurring_rule', recurringRuleId);
 }
 
+export function deleteRecurringRule(recurringRuleId: number) {
+	return callApi<{ status: string }>('delete_recurring_rule', recurringRuleId);
+}
+
 export function generateTransaction(recurringRuleId: number) {
 	return callApi<{ transaction_id: number }>('generate_transaction', recurringRuleId);
+}
+
+export function generateDueTransaction(recurringRuleId: number) {
+	return callApi<{ transaction_id: number }>('generate_due_transaction', recurringRuleId);
 }

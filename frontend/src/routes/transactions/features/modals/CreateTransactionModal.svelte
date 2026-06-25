@@ -2,6 +2,7 @@
 	import type { Account } from '$lib/api/accounts';
 	import type { Budget, BudgetItem } from '$lib/api/budgets';
 	import type { Category, CategoryGroup, CategoryGroupType } from '$lib/api/categories';
+	import type { Tag } from '$lib/api/tags';
 	import SearchableCombobox from '$lib/shared/components/SearchableCombobox.svelte';
 
 	let {
@@ -21,8 +22,10 @@
 		transactionDate = $bindable(),
 		payee = $bindable(),
 		notes = $bindable(),
+		selectedTagIds = $bindable(),
 		error,
 		saving,
+		tags = [],
 		categoryName,
 		eyebrow = 'Add transaction',
 		title = 'New transaction',
@@ -49,8 +52,10 @@
 		transactionDate: string;
 		payee: string;
 		notes: string;
+		selectedTagIds: number[];
 		error: string;
 		saving: boolean;
+		tags?: Tag[];
 		categoryName: (categoryId: number) => string;
 		eyebrow?: string;
 		title?: string;
@@ -63,6 +68,7 @@
 	}>();
 
 	let structureLocked = $derived(lockTransactionStructure || (mode === 'transfer' && lockTransferStructure));
+	let tagPickerValue = $state('');
 	let categoryGroupsForMode = $derived(
 		categoryGroups.filter((group: CategoryGroup) => group.type === mode)
 	);
@@ -104,6 +110,17 @@
 			label: budget.name
 		}))
 	]);
+	let selectedTags = $derived(
+		tags.filter((tag: Tag) => selectedTagIds.includes(tag.tag_id))
+	);
+	let availableTagOptions = $derived(
+		tags
+			.filter((tag: Tag) => !selectedTagIds.includes(tag.tag_id))
+			.map((tag: Tag) => ({
+				value: String(tag.tag_id),
+				label: tag.name
+			}))
+	);
 
 	$effect(() => {
 		if (!categoryGroupsForMode.some((group: CategoryGroup) => group.group_id === categoryGroupId)) {
@@ -137,6 +154,20 @@
 
 		amount = next;
 		input.value = next;
+	}
+
+	function addSelectedTag(value: string) {
+		const tagId = Number(value);
+
+		if (tagId && !selectedTagIds.includes(tagId)) {
+			selectedTagIds = [...selectedTagIds, tagId];
+		}
+
+		tagPickerValue = '';
+	}
+
+	function removeSelectedTag(tagId: number) {
+		selectedTagIds = selectedTagIds.filter((currentTagId: number) => currentTagId !== tagId);
 	}
 </script>
 
@@ -266,6 +297,38 @@
 			<span class="text-sm font-medium">Notes</span>
 			<textarea bind:value={notes} rows="3" placeholder="Add a note..."></textarea>
 		</label>
+
+		<div class="mt-4 grid gap-2">
+			<span class="text-sm font-medium">Tags</span>
+			{#if selectedTags.length > 0}
+				<div class="flex flex-wrap gap-2">
+					{#each selectedTags as tag}
+						<button
+							class="transaction-tag-pill"
+							type="button"
+							aria-label={`Remove ${tag.name} tag`}
+							onclick={() => removeSelectedTag(tag.tag_id)}
+						>
+							{tag.name} ×
+						</button>
+					{/each}
+				</div>
+			{/if}
+
+			{#if tags.length > 0 && availableTagOptions.length > 0}
+				<SearchableCombobox
+					bind:value={tagPickerValue}
+					options={availableTagOptions}
+					placeholder="Add a tag"
+					searchPlaceholder="Search tags..."
+					onChange={addSelectedTag}
+				/>
+			{:else if tags.length === 0}
+				<p class="text-muted text-xs">Create tags in Settings to use them here.</p>
+			{:else}
+				<p class="text-muted text-xs">All tags are selected.</p>
+			{/if}
+		</div>
 
 		{#if error}
 			<div class="mt-4 rounded-xl border p-3 text-sm money-negative" style="border-color: rgba(189, 74, 63, 0.3); background: rgba(189, 74, 63, 0.08)">

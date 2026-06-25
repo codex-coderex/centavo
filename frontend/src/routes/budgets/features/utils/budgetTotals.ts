@@ -11,6 +11,67 @@ export function plannedForBudget(items: BudgetItem[]) {
 	return items.reduce((total: number, item: BudgetItem) => total + item.planned_amount_minor, 0);
 }
 
+export function rolloverCarryForBudgetItem(
+	item: BudgetItem,
+	budget: Budget,
+	budgets: Budget[],
+	items: BudgetItem[],
+	transactions: Transaction[]
+) {
+	const previousBudget = [...budgets]
+		.filter((row: Budget) =>
+			row.budget_id !== budget.budget_id &&
+			row.end_date != null &&
+			row.end_date < budget.start_date
+		)
+		.sort((a: Budget, b: Budget) => (b.end_date ?? '').localeCompare(a.end_date ?? ''))
+		.find((row: Budget) =>
+			items.some((candidate: BudgetItem) =>
+				candidate.budget_id === row.budget_id &&
+				candidate.category_id === item.category_id &&
+				candidate.rollover_enabled
+			)
+		);
+
+	if (!previousBudget) return 0;
+
+	const previousItem = items.find((candidate: BudgetItem) =>
+		candidate.budget_id === previousBudget.budget_id &&
+		candidate.category_id === item.category_id &&
+		candidate.rollover_enabled
+	);
+
+	if (!previousItem) return 0;
+
+	return previousItem.planned_amount_minor - spentForBudgetItem(previousItem, transactions);
+}
+
+export function plannedForBudgetItemWithRollover(
+	item: BudgetItem,
+	budget: Budget,
+	budgets: Budget[],
+	items: BudgetItem[],
+	transactions: Transaction[]
+) {
+	return Math.max(
+		0,
+		item.planned_amount_minor + rolloverCarryForBudgetItem(item, budget, budgets, items, transactions)
+	);
+}
+
+export function plannedForBudgetWithRollover(
+	budget: Budget,
+	budgets: Budget[],
+	items: BudgetItem[],
+	transactions: Transaction[]
+) {
+	return itemsForBudget(budget, items).reduce(
+		(total: number, item: BudgetItem) =>
+			total + plannedForBudgetItemWithRollover(item, budget, budgets, items, transactions),
+		0
+	);
+}
+
 export function spentForBudget(items: BudgetItem[], transactions: Transaction[]) {
 	const itemIds = new Set(items.map((item: BudgetItem) => item.budget_item_id));
 

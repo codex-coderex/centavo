@@ -5,6 +5,8 @@
 	import type { Goal, GoalAccount } from '$lib/api/goals';
 	import type { RecurringRule } from '$lib/api/recurring';
 	import type { Transaction } from '$lib/api/transactions';
+	import PageHeader from '$lib/shared/components/PageHeader.svelte';
+	import ToastOnChange from '$lib/shared/components/ToastOnChange.svelte';
 	import BudgetsPanel from './BudgetsPanel.svelte';
 	import GoalsPanel from './GoalsPanel.svelte';
 	import RecentTransactionsPanel from './RecentTransactionsPanel.svelte';
@@ -51,6 +53,8 @@
 	let activeRecurringCount = $derived(recurringRules.filter((rule: RecurringRule) => rule.status === 'active').length);
 </script>
 
+<ToastOnChange {error} />
+
 {#if loading}
 	<div class="flex h-screen items-center justify-center">
 		<div class="flex flex-col items-center gap-3">
@@ -59,21 +63,14 @@
 		</div>
 	</div>
 {:else}
-	<section class="dashboard-page flex flex-col gap-5 p-5">
-		<div class="app-page-header flex flex-wrap items-end justify-between gap-4">
-			<div>
-				<p class="dashboard-eyebrow text-xs font-semibold uppercase tracking-widest">Overview</p>
-				<h1 class="mt-1 text-3xl font-bold tracking-tight">Dashboard</h1>
-				<p class="text-muted mt-2 text-sm">Spending, available cash, goals, recurring rules, transactions, and budgets in one place.</p>
-			</div>
-		</div>
+	<section class="dashboard-page flex min-h-screen flex-col">
+		<PageHeader
+			eyebrow="Overview"
+			title="Dashboard"
+			subtitle="Spending, available cash, goals, recurring rules, transactions, and budgets in one place."
+		/>
 
-		{#if error}
-			<div class="rounded-2xl border p-4 text-sm money-negative" style="border-color: rgba(189, 74, 63, 0.3); background: rgba(189, 74, 63, 0.08)">
-				{error}
-			</div>
-		{/if}
-
+		<div class="flex flex-col gap-5 p-5">
 		<div class="grid gap-3 md:grid-cols-3">
 			<div class="dashboard-card-primary p-5">
 				<p class="dashboard-eyebrow text-[11px] font-bold uppercase tracking-widest">Available</p>
@@ -91,16 +88,17 @@
 			</div>
 		</div>
 
-		<div class="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.85fr)]">
-			<div class="grid gap-5">
-				<SpendingChart {transactions} bind:period />
-				<BudgetsPanel budgets={summaries} />
-			</div>
+			<div class="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.85fr)]">
+				<div class="grid gap-5">
+					<SpendingChart {transactions} bind:period />
+					<BudgetsPanel budgets={summaries} />
+				</div>
 
-			<div class="grid content-start gap-5">
-				<GoalsPanel {goals} {goalAccounts} {accounts} />
-				<RecentTransactionsPanel {transactions} {categories} {categoryGroups} />
-				<RecurringPanel {recurringRules} {accounts} {categories} />
+				<div class="grid content-start gap-5">
+					<GoalsPanel {goals} {goalAccounts} {accounts} />
+					<RecentTransactionsPanel {transactions} {categories} {categoryGroups} />
+					<RecurringPanel {recurringRules} {accounts} {categories} />
+				</div>
 			</div>
 		</div>
 	</section>
