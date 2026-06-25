@@ -1,90 +1,81 @@
-from sqlalchemy import select, insert, update, delete
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-
-from db.tables import tag, transaction_tag
-from db.connection import get_conn
+from db.connection import build_update, execute, get_conn, row_to_dict, rows_to_dicts
 
 
 def get_tags(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(tag)
-            .where(tag.c.user_id == user_id)
-            .order_by(tag.c.name)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            "SELECT * FROM tag WHERE user_id = ? ORDER BY name",
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_tag(tag_id: int):
     with get_conn() as conn:
-        row = conn.execute(
-            select(tag).where(tag.c.tag_id == tag_id)
-        ).first()
-
-        return dict(row._mapping) if row else None
+        row = execute(conn, "SELECT * FROM tag WHERE tag_id = ?", (tag_id,)).fetchone()
+        return row_to_dict(row)
 
 
 def create_tag(user_id: int, name: str):
     with get_conn() as conn:
-        result = conn.execute(
-            insert(tag).values(
-                user_id=user_id,
-                name=name,
-            )
+        cursor = execute(
+            conn,
+            "INSERT INTO tag (user_id, name) VALUES (?, ?)",
+            (user_id, name),
         )
-        return result.inserted_primary_key[0]
+        return cursor.lastrowid
 
 
 def update_tag(tag_id: int, **kwargs):
-    allowed = {"name"}
-    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+    clean_values = {key: value for key, value in kwargs.items() if key == "name"}
 
-    if not clean_values:
+    statement = build_update("tag", "tag_id", tag_id, clean_values)
+    if statement is None:
         return None
 
+    sql, params = statement
     with get_conn() as conn:
-        conn.execute(
-            update(tag)
-            .where(tag.c.tag_id == tag_id)
-            .values(**clean_values)
-        )
+        execute(conn, sql, params)
 
 
 def delete_tag(tag_id: int):
     with get_conn() as conn:
-        conn.execute(
-            delete(tag).where(tag.c.tag_id == tag_id)
-        )
+        execute(conn, "DELETE FROM tag WHERE tag_id = ?", (tag_id,))
 
 
 def get_transaction_tags(transaction_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(tag)
-            .join(transaction_tag, tag.c.tag_id == transaction_tag.c.tag_id)
-            .where(transaction_tag.c.transaction_id == transaction_id)
-            .order_by(tag.c.name)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT tag.*
+            FROM tag
+            JOIN transaction_tag ON tag.tag_id = transaction_tag.tag_id
+            WHERE transaction_tag.transaction_id = ?
+            ORDER BY tag.name
+            """,
+            (transaction_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def create_transaction_tag(transaction_id: int, tag_id: int):
     with get_conn() as conn:
-        stmt = (
-            sqlite_insert(transaction_tag)
-            .values(
-                transaction_id=transaction_id,
-                tag_id=tag_id,
-            )
-            .on_conflict_do_nothing()
+        execute(
+            conn,
+            """
+            INSERT OR IGNORE INTO transaction_tag (transaction_id, tag_id)
+            VALUES (?, ?)
+            """,
+            (transaction_id, tag_id),
         )
-        conn.execute(stmt)
 
 
 def delete_transaction_tag(transaction_id: int, tag_id: int):
     with get_conn() as conn:
-        conn.execute(
-            delete(transaction_tag)
-            .where(transaction_tag.c.transaction_id == transaction_id)
-            .where(transaction_tag.c.tag_id == tag_id)
+        execute(
+            conn,
+            "DELETE FROM transaction_tag WHERE transaction_id = ? AND tag_id = ?",
+            (transaction_id, tag_id),
         )

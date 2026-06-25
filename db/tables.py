@@ -1,226 +1,205 @@
-from sqlalchemy import (
-    MetaData, Table, Column,
-    Integer, String, Boolean, DateTime, Text,
-    ForeignKey, CheckConstraint, Index,
-    UniqueConstraint, text,
-)
+SCHEMA_STATEMENTS = [
+    """
+    CREATE TABLE IF NOT EXISTS user (
+        user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS account (
+        account_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        opening_balance_minor INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        FOREIGN KEY (user_id) REFERENCES user(user_id),
+        CONSTRAINT ck_account_status CHECK (status IN ('active','archived')),
+        CONSTRAINT ck_account_type CHECK (
+            type IN (
+                'checking','savings','cash','credit_card','line_of_credit','loan',
+                'mortgage','investment','other_asset','other_liability'
+            )
+        )
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS category_group (
+        group_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        is_system INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        FOREIGN KEY (user_id) REFERENCES user(user_id),
+        CONSTRAINT ck_category_group_type CHECK (type IN ('income','expense','transfer')),
+        CONSTRAINT uq_category_group_user_type_name UNIQUE (user_id, type, name)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS category (
+        category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        is_system INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        FOREIGN KEY (group_id) REFERENCES category_group(group_id),
+        CONSTRAINT uq_category_group_name UNIQUE (group_id, name)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS budget (
+        budget_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        period_type TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES user(user_id),
+        CONSTRAINT ck_budget_period_type CHECK (
+            period_type IN ('weekly','monthly','quarterly','yearly','custom')
+        ),
+        CONSTRAINT uq_budget_user_name_start_date UNIQUE (user_id, name, start_date)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS budget_item (
+        budget_item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        budget_id INTEGER NOT NULL,
+        category_id INTEGER NOT NULL,
+        planned_amount_minor INTEGER NOT NULL,
+        rollover_enabled INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (budget_id) REFERENCES budget(budget_id) ON DELETE CASCADE,
+        FOREIGN KEY (category_id) REFERENCES category(category_id),
+        CONSTRAINT ck_budget_item_planned_amount_minor CHECK (planned_amount_minor >= 0),
+        CONSTRAINT uq_budget_item_budget_category UNIQUE (budget_id, category_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS recurring_rule (
+        recurring_rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        category_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        expected_amount_minor INTEGER NOT NULL,
+        interval INTEGER NOT NULL,
+        frequency_unit TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        next_due_date TEXT NOT NULL,
+        end_date TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        FOREIGN KEY (account_id) REFERENCES account(account_id),
+        FOREIGN KEY (category_id) REFERENCES category(category_id),
+        CONSTRAINT ck_recurring_rule_expected_amount_minor CHECK (expected_amount_minor <> 0),
+        CONSTRAINT ck_recurring_rule_interval CHECK (interval > 0),
+        CONSTRAINT ck_recurring_rule_frequency_unit CHECK (frequency_unit IN ('day','week','month','year')),
+        CONSTRAINT ck_recurring_rule_status CHECK (status IN ('active','paused','inactive'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS goal (
+        goal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        target_amount_minor INTEGER NOT NULL,
+        target_date TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        FOREIGN KEY (user_id) REFERENCES user(user_id),
+        CONSTRAINT ck_goal_target_amount_minor CHECK (target_amount_minor > 0),
+        CONSTRAINT ck_goal_status CHECK (status IN ('active','completed'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS goal_account (
+        goal_id INTEGER NOT NULL,
+        account_id INTEGER NOT NULL,
+        allocated_amount_minor INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (goal_id, account_id),
+        FOREIGN KEY (goal_id) REFERENCES goal(goal_id) ON DELETE CASCADE,
+        FOREIGN KEY (account_id) REFERENCES account(account_id) ON DELETE CASCADE,
+        CONSTRAINT ck_goal_account_allocated_amount_minor CHECK (allocated_amount_minor >= 0)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tag (
+        tag_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES user(user_id),
+        CONSTRAINT uq_tag_user_name UNIQUE (user_id, name)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS "transaction" (
+        transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        category_id INTEGER NOT NULL,
+        budget_item_id INTEGER,
+        recurring_rule_id INTEGER,
+        payee TEXT,
+        amount_minor INTEGER NOT NULL,
+        transaction_date TEXT NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        transfer_id INTEGER,
+        FOREIGN KEY (account_id) REFERENCES account(account_id),
+        FOREIGN KEY (category_id) REFERENCES category(category_id),
+        FOREIGN KEY (budget_item_id) REFERENCES budget_item(budget_item_id) ON DELETE SET NULL,
+        FOREIGN KEY (recurring_rule_id) REFERENCES recurring_rule(recurring_rule_id) ON DELETE SET NULL,
+        CONSTRAINT ck_transaction_amount_minor CHECK (amount_minor <> 0)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS transaction_tag (
+        transaction_id INTEGER NOT NULL,
+        tag_id INTEGER NOT NULL,
+        PRIMARY KEY (transaction_id, tag_id),
+        FOREIGN KEY (transaction_id) REFERENCES "transaction"(transaction_id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tag(tag_id) ON DELETE CASCADE
+    )
+    """,
+]
 
-metadata = MetaData()
+INDEX_STATEMENTS = [
+    "CREATE INDEX IF NOT EXISTS ix_account_user_id ON account(user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_account_status ON account(status)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_account_active_user_name ON account(user_id, name) WHERE status = 'active'",
+    "CREATE INDEX IF NOT EXISTS ix_category_group_user_id ON category_group(user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_category_group_type ON category_group(type)",
+    "CREATE INDEX IF NOT EXISTS ix_category_group_is_active ON category_group(is_active)",
+    "CREATE INDEX IF NOT EXISTS ix_category_group_id ON category(group_id)",
+    "CREATE INDEX IF NOT EXISTS ix_category_is_active ON category(is_active)",
+    "CREATE INDEX IF NOT EXISTS ix_budget_user_id ON budget(user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_budget_start_date ON budget(start_date)",
+    "CREATE INDEX IF NOT EXISTS ix_budget_period_type ON budget(period_type)",
+    "CREATE INDEX IF NOT EXISTS ix_budget_item_budget_id ON budget_item(budget_id)",
+    "CREATE INDEX IF NOT EXISTS ix_budget_item_category_id ON budget_item(category_id)",
+    "CREATE INDEX IF NOT EXISTS ix_recurring_rule_account_id ON recurring_rule(account_id)",
+    "CREATE INDEX IF NOT EXISTS ix_recurring_rule_category_id ON recurring_rule(category_id)",
+    "CREATE INDEX IF NOT EXISTS ix_recurring_rule_next_due_date ON recurring_rule(next_due_date)",
+    "CREATE INDEX IF NOT EXISTS ix_recurring_rule_status ON recurring_rule(status)",
+    "CREATE INDEX IF NOT EXISTS ix_goal_user_id ON goal(user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_goal_status ON goal(status)",
+    "CREATE INDEX IF NOT EXISTS ix_goal_account_goal_id ON goal_account(goal_id)",
+    "CREATE INDEX IF NOT EXISTS ix_goal_account_account_id ON goal_account(account_id)",
+    "CREATE INDEX IF NOT EXISTS ix_tag_user_id ON tag(user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_transaction_account_id ON \"transaction\"(account_id)",
+    "CREATE INDEX IF NOT EXISTS ix_transaction_category_id ON \"transaction\"(category_id)",
+    "CREATE INDEX IF NOT EXISTS ix_transaction_budget_item_id ON \"transaction\"(budget_item_id)",
+    "CREATE INDEX IF NOT EXISTS ix_transaction_recurring_rule_id ON \"transaction\"(recurring_rule_id)",
+    "CREATE INDEX IF NOT EXISTS ix_transaction_transfer_id ON \"transaction\"(transfer_id)",
+    "CREATE INDEX IF NOT EXISTS ix_transaction_transaction_date ON \"transaction\"(transaction_date)",
+    "CREATE INDEX IF NOT EXISTS ix_transaction_tag_transaction_id ON transaction_tag(transaction_id)",
+    "CREATE INDEX IF NOT EXISTS ix_transaction_tag_tag_id ON transaction_tag(tag_id)",
+]
 
 
-user = Table("user", metadata,
-    Column("user_id", Integer, primary_key=True, autoincrement=True),
-    Column("name", String, nullable=False),
-    Column("created_at", DateTime, nullable=False),
-)
+def initialize_schema(conn):
+    for statement in SCHEMA_STATEMENTS:
+        conn.execute(statement)
 
-
-account = Table("account", metadata,
-    Column("account_id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
-    Column("name", String, nullable=False),
-    Column("type", String, nullable=False),
-    Column("opening_balance_minor", Integer, nullable=False, server_default=text("0")),
-    Column("created_at", DateTime, nullable=False),
-    Column("status", String, nullable=False, server_default=text("'active'")),
-    CheckConstraint("status IN ('active','archived')", name="ck_account_status"),
-    CheckConstraint(
-        "type IN ('checking','savings','cash','credit_card','line_of_credit','loan','mortgage','investment','other_asset','other_liability')",
-        name="ck_account_type",
-    ),
-)
-
-
-category_group = Table("category_group", metadata,
-    Column("group_id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
-    Column("name", String, nullable=False),
-    Column("type", String, nullable=False),
-    Column("is_system", Boolean, nullable=False, server_default=text("0")),
-    Column("is_active", Boolean, nullable=False, server_default=text("1")),
-    CheckConstraint("type IN ('income','expense','transfer')", name="ck_category_group_type"),
-    UniqueConstraint("user_id", "type", "name", name="uq_category_group_user_type_name"),
-)
-
-
-category = Table("category", metadata,
-    Column("category_id", Integer, primary_key=True, autoincrement=True),
-    Column("group_id", Integer, ForeignKey("category_group.group_id"), nullable=False),
-    Column("name", String, nullable=False),
-    Column("is_system", Boolean, nullable=False, server_default=text("0")),
-    Column("is_active", Boolean, nullable=False, server_default=text("1")),
-    UniqueConstraint("group_id", "name", name="uq_category_group_name"),
-)
-
-
-budget = Table("budget", metadata,
-    Column("budget_id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
-    Column("name", String, nullable=False),
-    Column("period_type", String, nullable=False),
-    Column("start_date", DateTime, nullable=False),
-    Column("end_date", DateTime),
-    Column("created_at", DateTime, nullable=False),
-    CheckConstraint(
-        "period_type IN ('weekly','monthly','quarterly','yearly','custom')",
-        name="ck_budget_period_type",
-    ),
-    UniqueConstraint("user_id", "name", "start_date", name="uq_budget_user_name_start_date"),
-)
-
-
-budget_item = Table("budget_item", metadata,
-    Column("budget_item_id", Integer, primary_key=True, autoincrement=True),
-    Column("budget_id", Integer, ForeignKey("budget.budget_id", ondelete="CASCADE"), nullable=False),
-    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=False),
-    Column("planned_amount_minor", Integer, nullable=False),
-    Column("rollover_enabled", Boolean, nullable=False, server_default=text("0")),
-    CheckConstraint("planned_amount_minor >= 0", name="ck_budget_item_planned_amount_minor"),
-    UniqueConstraint("budget_id", "category_id", name="uq_budget_item_budget_category"),
-)
-
-
-recurring_rule = Table("recurring_rule", metadata,
-    Column("recurring_rule_id", Integer, primary_key=True, autoincrement=True),
-    Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
-    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=False),
-    Column("name", String, nullable=False),
-    Column("expected_amount_minor", Integer, nullable=False),
-    Column("interval", Integer, nullable=False),
-    Column("frequency_unit", String, nullable=False),
-    Column("start_date", DateTime, nullable=False),
-    Column("next_due_date", DateTime, nullable=False),
-    Column("end_date", DateTime),
-    Column("status", String, nullable=False, server_default=text("'active'")),
-    CheckConstraint("expected_amount_minor <> 0", name="ck_recurring_rule_expected_amount_minor"),
-    CheckConstraint("interval > 0", name="ck_recurring_rule_interval"),
-    CheckConstraint(
-        "frequency_unit IN ('day','week','month','year')",
-        name="ck_recurring_rule_frequency_unit",
-    ),
-    CheckConstraint(
-        "status IN ('active','paused','inactive')",
-        name="ck_recurring_rule_status",
-    ),
-)
-
-
-goal = Table("goal", metadata,
-    Column("goal_id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
-    Column("name", String, nullable=False),
-    Column("target_amount_minor", Integer, nullable=False),
-    Column("target_date", DateTime),
-    Column("status", String, nullable=False, server_default=text("'active'")),
-    CheckConstraint("target_amount_minor > 0", name="ck_goal_target_amount_minor"),
-    CheckConstraint("status IN ('active','completed')", name="ck_goal_status"),
-)
-
-
-goal_account = Table("goal_account", metadata,
-    Column(
-        "goal_id",
-        Integer,
-        ForeignKey("goal.goal_id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-    Column(
-        "account_id",
-        Integer,
-        ForeignKey("account.account_id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-    Column("allocated_amount_minor", Integer, nullable=False, server_default=text("0")),
-    CheckConstraint(
-        "allocated_amount_minor >= 0",
-        name="ck_goal_account_allocated_amount_minor",
-    ),
-)
-
-
-tag = Table("tag", metadata,
-    Column("tag_id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", Integer, ForeignKey("user.user_id"), nullable=False),
-    Column("name", String, nullable=False),
-    UniqueConstraint("user_id", "name", name="uq_tag_user_name"),
-)
-
-
-transaction = Table("transaction", metadata,
-    Column("transaction_id", Integer, primary_key=True, autoincrement=True),
-    Column("account_id", Integer, ForeignKey("account.account_id"), nullable=False),
-    Column("category_id", Integer, ForeignKey("category.category_id"), nullable=False),
-    Column("budget_item_id", Integer, ForeignKey("budget_item.budget_item_id", ondelete="SET NULL"), nullable=True),
-    Column("recurring_rule_id", Integer, ForeignKey("recurring_rule.recurring_rule_id", ondelete="SET NULL"), nullable=True),
-    Column("payee", String),
-    Column("amount_minor", Integer, nullable=False),
-    Column("transaction_date", DateTime, nullable=False),
-    Column("notes", Text),
-    Column("created_at", DateTime, nullable=False),
-    Column("transfer_id", Integer),
-    CheckConstraint("amount_minor <> 0", name="ck_transaction_amount_minor"),
-)
-
-
-transaction_tag = Table("transaction_tag", metadata,
-    Column(
-        "transaction_id",
-        Integer,
-        ForeignKey("transaction.transaction_id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-    Column(
-        "tag_id",
-        Integer,
-        ForeignKey("tag.tag_id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-)
-
-
-Index("ix_account_user_id", account.c.user_id)
-Index("ix_account_status", account.c.status)
-Index(
-    "uq_account_active_user_name",
-    account.c.user_id,
-    account.c.name,
-    unique=True,
-    sqlite_where=account.c.status == "active",
-)
-
-Index("ix_category_group_user_id", category_group.c.user_id)
-Index("ix_category_group_type", category_group.c.type)
-Index("ix_category_group_is_active", category_group.c.is_active)
-
-Index("ix_category_group_id", category.c.group_id)
-Index("ix_category_is_active", category.c.is_active)
-
-Index("ix_budget_user_id", budget.c.user_id)
-Index("ix_budget_start_date", budget.c.start_date)
-Index("ix_budget_period_type", budget.c.period_type)
-
-Index("ix_budget_item_budget_id", budget_item.c.budget_id)
-Index("ix_budget_item_category_id", budget_item.c.category_id)
-
-Index("ix_recurring_rule_account_id", recurring_rule.c.account_id)
-Index("ix_recurring_rule_category_id", recurring_rule.c.category_id)
-Index("ix_recurring_rule_next_due_date", recurring_rule.c.next_due_date)
-Index("ix_recurring_rule_status", recurring_rule.c.status)
-
-Index("ix_goal_user_id", goal.c.user_id)
-Index("ix_goal_status", goal.c.status)
-
-Index("ix_goal_account_goal_id", goal_account.c.goal_id)
-Index("ix_goal_account_account_id", goal_account.c.account_id)
-
-Index("ix_tag_user_id", tag.c.user_id)
-
-Index("ix_transaction_account_id", transaction.c.account_id)
-Index("ix_transaction_category_id", transaction.c.category_id)
-Index("ix_transaction_budget_item_id", transaction.c.budget_item_id)
-Index("ix_transaction_recurring_rule_id", transaction.c.recurring_rule_id)
-Index("ix_transaction_transfer_id", transaction.c.transfer_id)
-Index("ix_transaction_transaction_date", transaction.c.transaction_date)
-
-Index("ix_transaction_tag_transaction_id", transaction_tag.c.transaction_id)
-Index("ix_transaction_tag_tag_id", transaction_tag.c.tag_id)
+    for statement in INDEX_STATEMENTS:
+        conn.execute(statement)

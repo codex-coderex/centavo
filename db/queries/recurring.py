@@ -1,29 +1,32 @@
 from datetime import datetime
 
-from sqlalchemy import select, insert, update
-from db.tables import recurring_rule, account
-from db.connection import get_conn
+from db.connection import build_update, execute, get_conn, row_to_dict, rows_to_dicts
 
 
 def get_recurring_rules(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(recurring_rule)
-            .join(account, recurring_rule.c.account_id == account.c.account_id)
-            .where(account.c.user_id == user_id)
-            .order_by(recurring_rule.c.next_due_date)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT recurring_rule.*
+            FROM recurring_rule
+            JOIN account ON recurring_rule.account_id = account.account_id
+            WHERE account.user_id = ?
+            ORDER BY recurring_rule.next_due_date
+            """,
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_recurring_rule(recurring_rule_id: int):
     with get_conn() as conn:
-        row = conn.execute(
-            select(recurring_rule)
-            .where(recurring_rule.c.recurring_rule_id == recurring_rule_id)
-        ).first()
-
-        return dict(row._mapping) if row else None
+        row = execute(
+            conn,
+            "SELECT * FROM recurring_rule WHERE recurring_rule_id = ?",
+            (recurring_rule_id,),
+        ).fetchone()
+        return row_to_dict(row)
 
 
 def get_due_recurring_rules(as_of=None):
@@ -31,12 +34,16 @@ def get_due_recurring_rules(as_of=None):
         as_of = datetime.now()
 
     with get_conn() as conn:
-        result = conn.execute(
-            select(recurring_rule)
-            .where(recurring_rule.c.status == "active")
-            .where(recurring_rule.c.next_due_date <= as_of)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT *
+            FROM recurring_rule
+            WHERE status = 'active' AND next_due_date <= ?
+            """,
+            (as_of,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def create_recurring_rule(
@@ -77,21 +84,28 @@ def create_recurring_rule_with_conn(
     next_due_date,
     end_date=None,
 ):
-    result = conn.execute(
-        insert(recurring_rule).values(
-            account_id=account_id,
-            category_id=category_id,
-            name=name,
-            expected_amount_minor=expected_amount_minor,
-            interval=interval,
-            frequency_unit=frequency_unit,
-            start_date=start_date,
-            next_due_date=next_due_date,
-            end_date=end_date,
-            status="active",
+    cursor = execute(
+        conn,
+        """
+        INSERT INTO recurring_rule (
+            account_id, category_id, name, expected_amount_minor, interval,
+            frequency_unit, start_date, next_due_date, end_date, status
         )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+        """,
+        (
+            account_id,
+            category_id,
+            name,
+            expected_amount_minor,
+            interval,
+            frequency_unit,
+            start_date,
+            next_due_date,
+            end_date,
+        ),
     )
-    return result.inserted_primary_key[0]
+    return cursor.lastrowid
 
 
 def update_recurring_rule(recurring_rule_id: int, **kwargs):
@@ -112,15 +126,16 @@ def update_recurring_rule_with_conn(conn, recurring_rule_id: int, **kwargs):
         "end_date",
         "status",
     }
+    clean_values = {key: value for key, value in kwargs.items() if key in allowed}
 
-    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
-
-    if not clean_values:
+    statement = build_update(
+        "recurring_rule",
+        "recurring_rule_id",
+        recurring_rule_id,
+        clean_values,
+    )
+    if statement is None:
         return None
 
-    conn.execute(
-        update(recurring_rule)
-        .where(recurring_rule.c.recurring_rule_id == recurring_rule_id)
-        .values(**clean_values)
-    )
-
+    sql, params = statement
+    execute(conn, sql, params)

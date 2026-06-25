@@ -1,15 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select
-
-from db.connection import get_conn
-from db.tables import (
-    user,
-    account,
-    category_group,
-    category,
-    transaction,
-)
+from db.connection import execute, get_conn
 
 
 def utc_now() -> datetime:
@@ -17,21 +8,21 @@ def utc_now() -> datetime:
 
 
 def get_or_create_user(conn, name: str = "Me") -> int:
-    existing = conn.execute(
-        select(user.c.user_id).where(user.c.name == name)
-    ).scalar_one_or_none()
+    row = execute(
+        conn,
+        "SELECT user_id FROM user WHERE name = ?",
+        (name,),
+    ).fetchone()
 
-    if existing is not None:
-        return existing
+    if row is not None:
+        return row["user_id"]
 
-    result = conn.execute(
-        user.insert().values(
-            name=name,
-            created_at=utc_now(),
-        )
+    cursor = execute(
+        conn,
+        "INSERT INTO user (name, created_at) VALUES (?, ?)",
+        (name, utc_now()),
     )
-
-    return int(result.inserted_primary_key[0])
+    return cursor.lastrowid
 
 
 def get_or_create_category_group(
@@ -42,28 +33,28 @@ def get_or_create_category_group(
     type_: str,
     is_system: bool = True,
 ) -> int:
-    existing = conn.execute(
-        select(category_group.c.group_id).where(
-            category_group.c.user_id == user_id,
-            category_group.c.type == type_,
-            category_group.c.name == name,
-        )
-    ).scalar_one_or_none()
+    row = execute(
+        conn,
+        """
+        SELECT group_id
+        FROM category_group
+        WHERE user_id = ? AND type = ? AND name = ?
+        """,
+        (user_id, type_, name),
+    ).fetchone()
 
-    if existing is not None:
-        return existing
+    if row is not None:
+        return row["group_id"]
 
-    result = conn.execute(
-        category_group.insert().values(
-            user_id=user_id,
-            name=name,
-            type=type_,
-            is_system=is_system,
-            is_active=True,
-        )
+    cursor = execute(
+        conn,
+        """
+        INSERT INTO category_group (user_id, name, type, is_system, is_active)
+        VALUES (?, ?, ?, ?, 1)
+        """,
+        (user_id, name, type_, is_system),
     )
-
-    return int(result.inserted_primary_key[0])
+    return cursor.lastrowid
 
 
 def get_or_create_category(
@@ -73,26 +64,28 @@ def get_or_create_category(
     name: str,
     is_system: bool = True,
 ) -> int:
-    existing = conn.execute(
-        select(category.c.category_id).where(
-            category.c.group_id == group_id,
-            category.c.name == name,
-        )
-    ).scalar_one_or_none()
+    row = execute(
+        conn,
+        """
+        SELECT category_id
+        FROM category
+        WHERE group_id = ? AND name = ?
+        """,
+        (group_id, name),
+    ).fetchone()
 
-    if existing is not None:
-        return existing
+    if row is not None:
+        return row["category_id"]
 
-    result = conn.execute(
-        category.insert().values(
-            group_id=group_id,
-            name=name,
-            is_system=is_system,
-            is_active=True,
-        )
+    cursor = execute(
+        conn,
+        """
+        INSERT INTO category (group_id, name, is_system, is_active)
+        VALUES (?, ?, ?, 1)
+        """,
+        (group_id, name, is_system),
     )
-
-    return int(result.inserted_primary_key[0])
+    return cursor.lastrowid
 
 
 def seed_categories(conn, user_id: int) -> dict[str, int]:
@@ -189,28 +182,30 @@ def get_or_create_account(
     type_: str = "checking",
     opening_balance_minor: int = 0,
 ) -> int:
-    existing = conn.execute(
-        select(account.c.account_id).where(
-            account.c.user_id == user_id,
-            account.c.name == name,
-        )
-    ).scalar_one_or_none()
+    row = execute(
+        conn,
+        """
+        SELECT account_id
+        FROM account
+        WHERE user_id = ? AND name = ?
+        """,
+        (user_id, name),
+    ).fetchone()
 
-    if existing is not None:
-        return existing
+    if row is not None:
+        return row["account_id"]
 
-    result = conn.execute(
-        account.insert().values(
-            user_id=user_id,
-            name=name,
-            type=type_,
-            opening_balance_minor=opening_balance_minor,
-            created_at=utc_now(),
-            status="active",
+    cursor = execute(
+        conn,
+        """
+        INSERT INTO account (
+            user_id, name, type, opening_balance_minor, created_at, status
         )
+        VALUES (?, ?, ?, ?, ?, 'active')
+        """,
+        (user_id, name, type_, opening_balance_minor, utc_now()),
     )
-
-    return int(result.inserted_primary_key[0])
+    return cursor.lastrowid
 
 
 def seed_sample_data(conn, user_id: int, category_ids: dict[str, int]) -> None:
@@ -235,31 +230,39 @@ def seed_sample_data(conn, user_id: int, category_ids: dict[str, int]) -> None:
 
     for amount_minor, txn_date, payee, category_name in sample_transactions:
         txn_dt = datetime.fromisoformat(txn_date)
+        row = execute(
+            conn,
+            """
+            SELECT transaction_id
+            FROM "transaction"
+            WHERE account_id = ?
+                AND amount_minor = ?
+                AND transaction_date = ?
+                AND payee = ?
+            """,
+            (account_id, amount_minor, txn_dt, payee),
+        ).fetchone()
 
-        exists = conn.execute(
-            select(transaction.c.transaction_id).where(
-                transaction.c.account_id == account_id,
-                transaction.c.amount_minor == amount_minor,
-                transaction.c.transaction_date == txn_dt,
-                transaction.c.payee == payee,
-            )
-        ).scalar_one_or_none()
-
-        if exists is not None:
+        if row is not None:
             continue
 
-        conn.execute(
-            transaction.insert().values(
-                account_id=account_id,
-                category_id=category_ids[category_name],
-                recurring_rule_id=None,
-                payee=payee,
-                amount_minor=amount_minor,
-                transaction_date=txn_dt,
-                notes=None,
-                created_at=utc_now(),
-                transfer_id=None,
+        execute(
+            conn,
+            """
+            INSERT INTO "transaction" (
+                account_id, category_id, recurring_rule_id, payee, amount_minor,
+                transaction_date, notes, created_at, transfer_id
             )
+            VALUES (?, ?, NULL, ?, ?, ?, NULL, ?, NULL)
+            """,
+            (
+                account_id,
+                category_ids[category_name],
+                payee,
+                amount_minor,
+                txn_dt,
+                utc_now(),
+            ),
         )
 
 

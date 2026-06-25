@@ -1,48 +1,41 @@
 from datetime import datetime
 
-from sqlalchemy import select, insert, update
-from db.tables import user
-from db.connection import get_conn
+from db.connection import build_update, execute, get_conn, row_to_dict, rows_to_dicts
 
 
 def get_users():
     with get_conn() as conn:
-        result = conn.execute(
-            select(user).order_by(user.c.name)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(conn, "SELECT * FROM user ORDER BY name").fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_user(user_id: int):
     with get_conn() as conn:
-        row = conn.execute(
-            select(user).where(user.c.user_id == user_id)
-        ).first()
-
-        return dict(row._mapping) if row else None
+        row = execute(
+            conn,
+            "SELECT * FROM user WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        return row_to_dict(row)
 
 
 def create_user(name: str):
     with get_conn() as conn:
-        result = conn.execute(
-            insert(user).values(
-                name=name,
-                created_at=datetime.now(),
-            )
+        cursor = execute(
+            conn,
+            "INSERT INTO user (name, created_at) VALUES (?, ?)",
+            (name, datetime.now()),
         )
-        return result.inserted_primary_key[0]
+        return cursor.lastrowid
 
 
 def update_user(user_id: int, **kwargs):
-    allowed = {"name"}
-    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+    clean_values = {key: value for key, value in kwargs.items() if key == "name"}
 
-    if not clean_values:
+    statement = build_update("user", "user_id", user_id, clean_values)
+    if statement is None:
         return None
 
+    sql, params = statement
     with get_conn() as conn:
-        conn.execute(
-            update(user)
-            .where(user.c.user_id == user_id)
-            .values(**clean_values)
-        )
+        execute(conn, sql, params)

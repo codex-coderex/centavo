@@ -20,6 +20,7 @@ export type Account = {
 	type: AccountType;
 	opening_balance_minor: number;
 	current_balance_minor: number;
+	allocated_to_goals_minor?: number;
 	created_at: string;
 	status: AccountStatus;
 };

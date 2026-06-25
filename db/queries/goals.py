@@ -1,25 +1,24 @@
-from sqlalchemy import select, insert, update, delete
-from db.tables import goal, goal_account
-from db.connection import get_conn
+from db.connection import build_update, execute, get_conn, row_to_dict, rows_to_dicts
 
 
 def get_goals(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(goal)
-            .where(goal.c.user_id == user_id)
-            .order_by(goal.c.status, goal.c.target_date)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            "SELECT * FROM goal WHERE user_id = ? ORDER BY status, target_date",
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_goal(goal_id: int):
     with get_conn() as conn:
-        row = conn.execute(
-            select(goal).where(goal.c.goal_id == goal_id)
-        ).first()
-
-        return dict(row._mapping) if row else None
+        row = execute(
+            conn,
+            "SELECT * FROM goal WHERE goal_id = ?",
+            (goal_id,),
+        ).fetchone()
+        return row_to_dict(row)
 
 
 def create_goal(
@@ -29,45 +28,81 @@ def create_goal(
     target_date=None,
 ):
     with get_conn() as conn:
-        result = conn.execute(
-            insert(goal).values(
-                user_id=user_id,
-                name=name,
-                target_amount_minor=target_amount_minor,
-                target_date=target_date,
-                status="active",
-            )
+        cursor = execute(
+            conn,
+            """
+            INSERT INTO goal (user_id, name, target_amount_minor, target_date, status)
+            VALUES (?, ?, ?, ?, 'active')
+            """,
+            (user_id, name, target_amount_minor, target_date),
         )
-        return result.inserted_primary_key[0]
+        return cursor.lastrowid
 
 
 def update_goal(goal_id: int, **kwargs):
-    allowed = {
-        "name",
-        "target_amount_minor",
-        "target_date",
-        "status",
-    }
-    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+    allowed = {"name", "target_amount_minor", "target_date", "status"}
+    clean_values = {key: value for key, value in kwargs.items() if key in allowed}
 
-    if not clean_values:
+    statement = build_update("goal", "goal_id", goal_id, clean_values)
+    if statement is None:
         return None
 
+    sql, params = statement
     with get_conn() as conn:
-        conn.execute(
-            update(goal)
-            .where(goal.c.goal_id == goal_id)
-            .values(**clean_values)
-        )
+        execute(conn, sql, params)
+
+
+def delete_goal(goal_id: int):
+    with get_conn() as conn:
+        execute(conn, "DELETE FROM goal WHERE goal_id = ?", (goal_id,))
 
 
 def get_goal_accounts(goal_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(goal_account)
-            .where(goal_account.c.goal_id == goal_id)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            "SELECT * FROM goal_account WHERE goal_id = ?",
+            (goal_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
+
+
+def get_goal_account(goal_id: int, account_id: int):
+    with get_conn() as conn:
+        row = execute(
+            conn,
+            """
+            SELECT *
+            FROM goal_account
+            WHERE goal_id = ? AND account_id = ?
+            """,
+            (goal_id, account_id),
+        ).fetchone()
+        return row_to_dict(row)
+
+
+def get_goal_accounts_by_account(account_id: int):
+    with get_conn() as conn:
+        rows = execute(
+            conn,
+            "SELECT * FROM goal_account WHERE account_id = ?",
+            (account_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
+
+
+def get_allocated_amount_for_account(account_id: int):
+    with get_conn() as conn:
+        row = execute(
+            conn,
+            """
+            SELECT COALESCE(SUM(allocated_amount_minor), 0) AS allocated_amount_minor
+            FROM goal_account
+            WHERE account_id = ?
+            """,
+            (account_id,),
+        ).fetchone()
+        return row["allocated_amount_minor"]
 
 
 def create_goal_account(
@@ -76,12 +111,13 @@ def create_goal_account(
     allocated_amount_minor: int = 0,
 ):
     with get_conn() as conn:
-        conn.execute(
-            insert(goal_account).values(
-                goal_id=goal_id,
-                account_id=account_id,
-                allocated_amount_minor=allocated_amount_minor,
-            )
+        execute(
+            conn,
+            """
+            INSERT INTO goal_account (goal_id, account_id, allocated_amount_minor)
+            VALUES (?, ?, ?)
+            """,
+            (goal_id, account_id, allocated_amount_minor),
         )
 
 
@@ -91,18 +127,21 @@ def update_goal_account(
     allocated_amount_minor: int,
 ):
     with get_conn() as conn:
-        conn.execute(
-            update(goal_account)
-            .where(goal_account.c.goal_id == goal_id)
-            .where(goal_account.c.account_id == account_id)
-            .values(allocated_amount_minor=allocated_amount_minor)
+        execute(
+            conn,
+            """
+            UPDATE goal_account
+            SET allocated_amount_minor = ?
+            WHERE goal_id = ? AND account_id = ?
+            """,
+            (allocated_amount_minor, goal_id, account_id),
         )
 
 
 def delete_goal_account(goal_id: int, account_id: int):
     with get_conn() as conn:
-        conn.execute(
-            delete(goal_account)
-            .where(goal_account.c.goal_id == goal_id)
-            .where(goal_account.c.account_id == account_id)
+        execute(
+            conn,
+            "DELETE FROM goal_account WHERE goal_id = ? AND account_id = ?",
+            (goal_id, account_id),
         )

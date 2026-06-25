@@ -1,5 +1,6 @@
 import db.queries.goals as goals_q
 import db.queries.accounts as accounts_q
+import db.queries.transactions as transactions_q
 import db.queries.users as users_q
 
 from utils.money import to_minor_units
@@ -20,6 +21,15 @@ def _ensure_account_exists(account_id: int):
     if account is None:
         raise ValueError("Account does not exist")
     return account
+
+
+def _available_account_balance(account_id: int):
+    account = _ensure_account_exists(account_id)
+    transactions = transactions_q.get_transactions_by_account(account_id)
+    transaction_total = sum(transaction["amount_minor"] for transaction in transactions)
+    allocated_total = goals_q.get_allocated_amount_for_account(account_id)
+
+    return account["opening_balance_minor"] + transaction_total - allocated_total
 
 
 def create_goal(user_id: int, name: str, target_amount, target_date=None):
@@ -80,6 +90,15 @@ def complete_goal(goal_id: int):
     return {"status": "completed"}
 
 
+def delete_goal(goal_id: int):
+    if goals_q.get_goal(goal_id) is None:
+        raise ValueError("Goal does not exist")
+
+    goals_q.delete_goal(goal_id)
+
+    return {"status": "deleted"}
+
+
 def get_goal_accounts(goal_id: int):
     if goals_q.get_goal(goal_id) is None:
         raise ValueError("Goal does not exist")
@@ -101,11 +120,23 @@ def add_account_to_goal(goal_id: int, account_id: int, allocated_amount=0):
     if allocated_amount_minor < 0:
         raise ValueError("Allocated amount cannot be negative")
 
-    goals_q.create_goal_account(
-        goal_id=goal_id,
-        account_id=account_id,
-        allocated_amount_minor=allocated_amount_minor,
-    )
+    if allocated_amount_minor > _available_account_balance(account_id):
+        raise ValueError("Allocated amount exceeds available account balance")
+
+    existing = goals_q.get_goal_account(goal_id, account_id)
+
+    if existing is None:
+        goals_q.create_goal_account(
+            goal_id=goal_id,
+            account_id=account_id,
+            allocated_amount_minor=allocated_amount_minor,
+        )
+    else:
+        goals_q.update_goal_account(
+            goal_id=goal_id,
+            account_id=account_id,
+            allocated_amount_minor=existing["allocated_amount_minor"] + allocated_amount_minor,
+        )
 
     return {"status": "added"}
 
@@ -126,6 +157,14 @@ def update_goal_account_allocation(goal_id: int, account_id: int, allocated_amou
     allocated_amount_minor = to_minor_units(allocated_amount)
     if allocated_amount_minor < 0:
         raise ValueError("Allocated amount cannot be negative")
+
+    existing = next(
+        row for row in goal_accounts if row["account_id"] == account_id
+    )
+    allocation_delta = allocated_amount_minor - existing["allocated_amount_minor"]
+
+    if allocation_delta > _available_account_balance(account_id):
+        raise ValueError("Allocated amount exceeds available account balance")
 
     goals_q.update_goal_account(
         goal_id=goal_id,

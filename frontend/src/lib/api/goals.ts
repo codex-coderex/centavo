@@ -63,6 +63,10 @@ export function completeGoal(goalId: number) {
 	return callApi<{ status: string }>('complete_goal', goalId);
 }
 
+export function deleteGoal(goalId: number) {
+	return callApi<{ status: string }>('delete_goal', goalId);
+}
+
 export function getGoalAccounts(goalId: number) {
 	return callApi<GoalAccount[]>('get_goal_accounts', goalId);
 }

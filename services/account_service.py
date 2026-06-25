@@ -1,4 +1,5 @@
 import db.queries.accounts as accounts_q
+import db.queries.goals as goals_q
 import db.queries.transactions as transactions_q
 import db.queries.users as users_q
 
@@ -12,10 +13,12 @@ ACTIVE_ACCOUNT_NAME_ERROR = "An active account with this name already exists. Ch
 def _with_current_balance(account: dict):
     transactions = transactions_q.get_transactions_by_account(account["account_id"])
     transaction_total = sum(transaction["amount_minor"] for transaction in transactions)
+    allocated_total = goals_q.get_allocated_amount_for_account(account["account_id"])
 
     return {
         **account,
-        "current_balance_minor": account["opening_balance_minor"] + transaction_total,
+        "current_balance_minor": account["opening_balance_minor"] + transaction_total - allocated_total,
+        "allocated_to_goals_minor": allocated_total,
     }
 
 

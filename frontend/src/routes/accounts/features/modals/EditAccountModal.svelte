@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Account } from '$lib/api/accounts';
+	import { sanitizeBalance } from '../utils/accountFormat';
 
 	let {
 		account,
@@ -25,10 +26,7 @@
 
 	function sanitizeBalanceInput(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
-		const next = input.value
-			.replace(/[^\d.]/g, '')
-			.replace(/(\..*)\./g, '$1')
-			.replace(/^(\d*)(\.\d{0,2}).*$/, '$1$2');
+		const next = sanitizeBalance(input.value);
 
 		balance = next;
 		input.value = next;

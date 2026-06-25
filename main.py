@@ -2,32 +2,23 @@ import os
 from pathlib import Path
 
 import webview
-from alembic import command
-from alembic.config import Config
 
+from db.connection import get_conn
 from db.seed import run_seed
+from db.tables import initialize_schema
 from api.bridge import FinanceApi
 
 
 BASE_DIR = Path(__file__).resolve().parent
 
 
-def run_migrations() -> None:
-    alembic_ini = BASE_DIR / "alembic.ini"
-
-    if not alembic_ini.exists():
-        raise RuntimeError(f"Missing Alembic config: {alembic_ini}")
-
-    cfg = Config(str(alembic_ini))
-
-    db_path = os.getenv("DB_PATH", "finance.db")
-    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
-
-    command.upgrade(cfg, "head")
+def initialize_database_schema() -> None:
+    with get_conn() as conn:
+        initialize_schema(conn)
 
 
 def init_database() -> None:
-    run_migrations()
+    initialize_database_schema()
     run_seed(sample_data=False)
 
 

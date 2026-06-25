@@ -1,39 +1,47 @@
 from datetime import datetime
 
-from sqlalchemy import select, insert, update, delete
-from db.tables import transaction, account
-from db.connection import get_conn
+from db.connection import build_update, execute, get_conn, row_to_dict, rows_to_dicts
 
 
 def get_transactions_by_user(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(transaction)
-            .join(account, transaction.c.account_id == account.c.account_id)
-            .where(account.c.user_id == user_id)
-            .order_by(transaction.c.transaction_date.desc())
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT "transaction".*
+            FROM "transaction"
+            JOIN account ON "transaction".account_id = account.account_id
+            WHERE account.user_id = ?
+            ORDER BY "transaction".transaction_date DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_transactions_by_account(account_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(transaction)
-            .where(transaction.c.account_id == account_id)
-            .order_by(transaction.c.transaction_date.desc())
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT *
+            FROM "transaction"
+            WHERE account_id = ?
+            ORDER BY transaction_date DESC
+            """,
+            (account_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_transaction(transaction_id: int):
     with get_conn() as conn:
-        row = conn.execute(
-            select(transaction)
-            .where(transaction.c.transaction_id == transaction_id)
-        ).first()
-
-        return dict(row._mapping) if row else None
+        row = execute(
+            conn,
+            'SELECT * FROM "transaction" WHERE transaction_id = ?',
+            (transaction_id,),
+        ).fetchone()
+        return row_to_dict(row)
 
 
 def create_transaction(
@@ -74,21 +82,29 @@ def create_transaction_with_conn(
     recurring_rule_id: int | None = None,
     transfer_id: int | None = None,
 ):
-    result = conn.execute(
-        insert(transaction).values(
-            account_id=account_id,
-            category_id=category_id,
-            budget_item_id=budget_item_id,
-            payee=payee,
-            amount_minor=amount_minor,
-            transaction_date=transaction_date,
-            notes=notes,
-            created_at=datetime.now(),
-            recurring_rule_id=recurring_rule_id,
-            transfer_id=transfer_id,
+    cursor = execute(
+        conn,
+        """
+        INSERT INTO "transaction" (
+            account_id, category_id, budget_item_id, payee, amount_minor,
+            transaction_date, notes, created_at, recurring_rule_id, transfer_id
         )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            account_id,
+            category_id,
+            budget_item_id,
+            payee,
+            amount_minor,
+            transaction_date,
+            notes,
+            datetime.now(),
+            recurring_rule_id,
+            transfer_id,
+        ),
     )
-    return result.inserted_primary_key[0]
+    return cursor.lastrowid
 
 
 def update_transaction(transaction_id: int, **kwargs):
@@ -108,38 +124,48 @@ def update_transaction_with_conn(conn, transaction_id: int, **kwargs):
         "recurring_rule_id",
         "transfer_id",
     }
-    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+    clean_values = {key: value for key, value in kwargs.items() if key in allowed}
 
-    if not clean_values:
+    statement = build_update(
+        '"transaction"',
+        "transaction_id",
+        transaction_id,
+        clean_values,
+    )
+    if statement is None:
         return None
 
-    conn.execute(
-        update(transaction)
-        .where(transaction.c.transaction_id == transaction_id)
-        .values(**clean_values)
-    )
+    sql, params = statement
+    execute(conn, sql, params)
 
 
 def delete_transaction(transaction_id: int):
     with get_conn() as conn:
-        conn.execute(
-            delete(transaction)
-            .where(transaction.c.transaction_id == transaction_id)
+        execute(
+            conn,
+            'DELETE FROM "transaction" WHERE transaction_id = ?',
+            (transaction_id,),
         )
 
 
 def get_transactions_by_transfer(transfer_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(transaction)
-            .where(transaction.c.transfer_id == transfer_id)
-            .order_by(transaction.c.transaction_id)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT *
+            FROM "transaction"
+            WHERE transfer_id = ?
+            ORDER BY transaction_id
+            """,
+            (transfer_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def delete_transactions_by_transfer_with_conn(conn, transfer_id: int):
-    conn.execute(
-        delete(transaction)
-        .where(transaction.c.transfer_id == transfer_id)
+    execute(
+        conn,
+        'DELETE FROM "transaction" WHERE transfer_id = ?',
+        (transfer_id,),
     )

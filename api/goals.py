@@ -28,6 +28,10 @@ def complete_goal(goal_id):
     return safe(lambda: service.complete_goal(goal_id))
 
 
+def delete_goal(goal_id):
+    return safe(lambda: service.delete_goal(goal_id))
+
+
 def get_goal_accounts(goal_id):
     return safe(lambda: service.get_goal_accounts(goal_id))
 

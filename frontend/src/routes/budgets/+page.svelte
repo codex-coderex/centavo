@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import {
-		deleteBudget,
-		deleteBudgetItem,
 		getBudgetItems,
 		getBudgets,
 		type Budget,
@@ -22,13 +21,10 @@
 	let transactions: Transaction[] = $state([]);
 	let selectedBudgetId: number | null = $state(null);
 	let editingBudget: Budget | null = $state(null);
-	let editingBudgetItem: BudgetItem | null = $state(null);
 	let loading = $state(true);
-	let loadingItems = $state(false);
 	let error = $state('');
 	let notice = $state('');
 	let showBudgetModal = $state(false);
-	let showBudgetItemModal = $state(false);
 
 	async function loadPage() {
 		loading = true;
@@ -60,82 +56,14 @@
 		}
 	}
 
-	async function refreshBudgetItems() {
-		if (selectedBudgetId === null) return;
-
-		loadingItems = true;
-
-		try {
-			const rows = await getBudgetItems(selectedBudgetId);
-			budgetItems = [
-				...budgetItems.filter((item: BudgetItem) => item.budget_id !== selectedBudgetId),
-				...rows
-			];
-		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
-		} finally {
-			loadingItems = false;
-		}
-	}
-
 	function openCreateBudget() {
 		notice = '';
 		editingBudget = null;
 		showBudgetModal = true;
 	}
 
-	function openEditBudget(budget: Budget) {
-		notice = '';
-		editingBudget = budget;
-		showBudgetModal = true;
-	}
-
-	function openCreateBudgetItem() {
-		if (selectedBudgetId === null) return;
-
-		notice = '';
-		editingBudgetItem = null;
-		showBudgetItemModal = true;
-	}
-
-	function openEditBudgetItem(item: BudgetItem) {
-		notice = '';
-		editingBudgetItem = item;
-		showBudgetItemModal = true;
-	}
-
-	async function removeBudget(budget: Budget) {
-		const confirmed = confirm(`Delete "${budget.name}"? This will also delete its budget items.`);
-		if (!confirmed) return;
-
-		error = '';
-		notice = '';
-
-		try {
-			await deleteBudget(budget.budget_id);
-			notice = 'Budget deleted.';
-			selectedBudgetId = null;
-			await loadPage();
-		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
-		}
-	}
-
-	async function removeBudgetItem(item: BudgetItem) {
-		const category = categories.find((row: Category) => row.category_id === item.category_id);
-		const confirmed = confirm(`Remove budget item for "${category?.name ?? `Category ${item.category_id}`}"?`);
-		if (!confirmed) return;
-
-		error = '';
-		notice = '';
-
-		try {
-			await deleteBudgetItem(item.budget_item_id);
-			notice = 'Budget item removed.';
-			await refreshBudgetItems();
-		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
-		}
+	function openBudgetDetail(budgetId: number) {
+		goto(`/budgets/${budgetId}`);
 	}
 
 	onMount(loadPage);
@@ -144,32 +72,24 @@
 <BudgetsView
 	{budgets}
 	{budgetItems}
-	{categories}
-	{categoryGroups}
 	{transactions}
-	bind:selectedBudgetId
 	{loading}
-	{loadingItems}
 	{error}
 	{notice}
 	onAddBudget={openCreateBudget}
-	onEditBudget={openEditBudget}
-	onDeleteBudget={removeBudget}
-	onAddItem={openCreateBudgetItem}
-	onEditItem={openEditBudgetItem}
-	onDeleteItem={removeBudgetItem}
+	onSelectBudget={openBudgetDetail}
 />
 
 <BudgetModals
 	bind:showBudgetModal
-	bind:showBudgetItemModal
+	showBudgetItemModal={false}
 	bind:editingBudget
-	bind:editingBudgetItem
+	editingBudgetItem={null}
 	bind:selectedBudgetId
 	{userId}
 	{categories}
 	{categoryGroups}
 	onRefresh={loadPage}
-	onRefreshBudgetItems={refreshBudgetItems}
+	onRefreshBudgetItems={async () => {}}
 	onNotice={(message) => notice = message}
 />

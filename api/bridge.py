@@ -278,6 +278,9 @@ class FinanceApi:
     def complete_goal(self, goal_id):
         return goals.complete_goal(goal_id)
 
+    def delete_goal(self, goal_id):
+        return goals.delete_goal(goal_id)
+
     def get_goal_accounts(self, goal_id):
         return goals.get_goal_accounts(goal_id)
 
@@ -364,3 +367,6 @@ class FinanceApi:
 
     def generate_transaction(self, recurring_rule_id):
         return recurring.generate_transaction(recurring_rule_id)
+
+    def generate_due_transaction(self, recurring_rule_id):
+        return recurring.generate_due_transaction(recurring_rule_id)

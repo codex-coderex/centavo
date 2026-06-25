@@ -1,86 +1,102 @@
-from sqlalchemy import select, insert, update, delete, func
-from db.tables import (
-    category,
-    category_group,
-    transaction,
-    budget_item,
-    recurring_rule,
-)
-from db.connection import get_conn
+from db.connection import build_update, execute, get_conn, row_to_dict, rows_to_dicts
 
 
 def get_category_groups(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(category_group)
-            .where(category_group.c.user_id == user_id)
-            .where(category_group.c.is_active.is_(True))
-            .order_by(category_group.c.type, category_group.c.name)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT *
+            FROM category_group
+            WHERE user_id = ? AND is_active = 1
+            ORDER BY type, name
+            """,
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_all_category_groups(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(category_group)
-            .where(category_group.c.user_id == user_id)
-            .order_by(category_group.c.type, category_group.c.name)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT *
+            FROM category_group
+            WHERE user_id = ?
+            ORDER BY type, name
+            """,
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_category_group(group_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(category_group).where(category_group.c.group_id == group_id)
-        )
-        row = result.first()
-        return dict(row._mapping) if row else None
+        row = execute(
+            conn,
+            "SELECT * FROM category_group WHERE group_id = ?",
+            (group_id,),
+        ).fetchone()
+        return row_to_dict(row)
 
 
 def get_categories_by_group(group_id: int, active_only: bool = False):
+    sql = "SELECT * FROM category WHERE group_id = ?"
+    params = [group_id]
+
+    if active_only:
+        sql += " AND is_active = 1"
+
+    sql += " ORDER BY name"
+
     with get_conn() as conn:
-        stmt = select(category).where(category.c.group_id == group_id)
-
-        if active_only:
-            stmt = stmt.where(category.c.is_active.is_(True))
-
-        result = conn.execute(stmt.order_by(category.c.name))
-        return [dict(row._mapping) for row in result]
+        rows = execute(conn, sql, params).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_all_categories(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(category)
-            .join(category_group, category.c.group_id == category_group.c.group_id)
-            .where(category_group.c.user_id == user_id)
-            .where(category_group.c.is_active.is_(True))
-            .where(category.c.is_active.is_(True))
-            .order_by(category_group.c.type, category.c.name)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT category.*
+            FROM category
+            JOIN category_group ON category.group_id = category_group.group_id
+            WHERE category_group.user_id = ?
+                AND category_group.is_active = 1
+                AND category.is_active = 1
+            ORDER BY category_group.type, category.name
+            """,
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_all_categories_for_user(user_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(category)
-            .join(category_group, category.c.group_id == category_group.c.group_id)
-            .where(category_group.c.user_id == user_id)
-            .order_by(category_group.c.type, category.c.name)
-        )
-        return [dict(row._mapping) for row in result]
+        rows = execute(
+            conn,
+            """
+            SELECT category.*
+            FROM category
+            JOIN category_group ON category.group_id = category_group.group_id
+            WHERE category_group.user_id = ?
+            ORDER BY category_group.type, category.name
+            """,
+            (user_id,),
+        ).fetchall()
+        return rows_to_dicts(rows)
 
 
 def get_category(category_id: int):
     with get_conn() as conn:
-        result = conn.execute(
-            select(category).where(category.c.category_id == category_id)
-        )
-        row = result.first()
-        return dict(row._mapping) if row else None
+        row = execute(
+            conn,
+            "SELECT * FROM category WHERE category_id = ?",
+            (category_id,),
+        ).fetchone()
+        return row_to_dict(row)
 
 
 def create_category_group(
@@ -89,16 +105,16 @@ def create_category_group(
     type: str,
     is_system: bool = False,
 ):
-    values = {
-        "user_id": user_id,
-        "name": name,
-        "type": type,
-        "is_system": is_system,
-    }
-
     with get_conn() as conn:
-        result = conn.execute(insert(category_group).values(**values))
-        return result.inserted_primary_key[0]
+        cursor = execute(
+            conn,
+            """
+            INSERT INTO category_group (user_id, name, type, is_system, is_active)
+            VALUES (?, ?, ?, ?, 1)
+            """,
+            (user_id, name, type, is_system),
+        )
+        return cursor.lastrowid
 
 
 def create_category(
@@ -106,119 +122,89 @@ def create_category(
     name: str,
     is_system: bool = False,
 ):
-    values = {
-        "group_id": group_id,
-        "name": name,
-        "is_system": is_system,
-    }
-
     with get_conn() as conn:
-        result = conn.execute(insert(category).values(**values))
-        return result.inserted_primary_key[0]
+        cursor = execute(
+            conn,
+            """
+            INSERT INTO category (group_id, name, is_system, is_active)
+            VALUES (?, ?, ?, 1)
+            """,
+            (group_id, name, is_system),
+        )
+        return cursor.lastrowid
 
 
 def update_category_group(group_id: int, **kwargs):
     allowed = {"name", "type", "is_active"}
-    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+    clean_values = {key: value for key, value in kwargs.items() if key in allowed}
 
-    if not clean_values:
+    statement = build_update("category_group", "group_id", group_id, clean_values)
+    if statement is None:
         return None
 
+    sql, params = statement
     with get_conn() as conn:
-        conn.execute(
-            update(category_group)
-            .where(category_group.c.group_id == group_id)
-            .values(**clean_values)
-        )
+        execute(conn, sql, params)
 
 
 def update_category(category_id: int, **kwargs):
     allowed = {"name", "is_active"}
-    clean_values = {k: v for k, v in kwargs.items() if k in allowed}
+    clean_values = {key: value for key, value in kwargs.items() if key in allowed}
 
-    if not clean_values:
+    statement = build_update("category", "category_id", category_id, clean_values)
+    if statement is None:
         return None
 
+    sql, params = statement
     with get_conn() as conn:
-        conn.execute(
-            update(category)
-            .where(category.c.category_id == category_id)
-            .values(**clean_values)
-        )
+        execute(conn, sql, params)
 
 
 def delete_category_group(group_id: int):
     with get_conn() as conn:
-        conn.execute(
-            delete(category_group)
-            .where(category_group.c.group_id == group_id)
-        )
+        execute(conn, "DELETE FROM category_group WHERE group_id = ?", (group_id,))
 
 
 def delete_category(category_id: int):
     with get_conn() as conn:
-        conn.execute(
-            delete(category)
-            .where(category.c.category_id == category_id)
-        )
+        execute(conn, "DELETE FROM category WHERE category_id = ?", (category_id,))
 
 
 def delete_categories_by_group(group_id: int):
     with get_conn() as conn:
-        conn.execute(
-            delete(category)
-            .where(category.c.group_id == group_id)
-        )
+        execute(conn, "DELETE FROM category WHERE group_id = ?", (group_id,))
 
 
 def category_has_references(category_id: int) -> bool:
     with get_conn() as conn:
-        has_transaction = conn.execute(
-            select(transaction.c.transaction_id)
-            .where(transaction.c.category_id == category_id)
-            .limit(1)
-        ).first()
+        for sql in (
+            'SELECT transaction_id FROM "transaction" WHERE category_id = ? LIMIT 1',
+            "SELECT budget_item_id FROM budget_item WHERE category_id = ? LIMIT 1",
+            "SELECT recurring_rule_id FROM recurring_rule WHERE category_id = ? LIMIT 1",
+        ):
+            if execute(conn, sql, (category_id,)).fetchone() is not None:
+                return True
 
-        if has_transaction:
-            return True
-
-        has_budget_item = conn.execute(
-            select(budget_item.c.budget_item_id)
-            .where(budget_item.c.category_id == category_id)
-            .limit(1)
-        ).first()
-
-        if has_budget_item:
-            return True
-
-        has_recurring = conn.execute(
-            select(recurring_rule.c.recurring_rule_id)
-            .where(recurring_rule.c.category_id == category_id)
-            .limit(1)
-        ).first()
-
-        return has_recurring is not None
+    return False
 
 
 def get_category_reference_counts(category_id: int):
     with get_conn() as conn:
-        transaction_count = conn.execute(
-            select(func.count())
-            .select_from(transaction)
-            .where(transaction.c.category_id == category_id)
-        ).scalar_one()
-
-        budget_item_count = conn.execute(
-            select(func.count())
-            .select_from(budget_item)
-            .where(budget_item.c.category_id == category_id)
-        ).scalar_one()
-
-        recurring_count = conn.execute(
-            select(func.count())
-            .select_from(recurring_rule)
-            .where(recurring_rule.c.category_id == category_id)
-        ).scalar_one()
+        transaction_count = execute(
+            conn,
+            'SELECT COUNT(*) AS count FROM "transaction" WHERE category_id = ?',
+            (category_id,),
+        ).fetchone()["count"]
+        budget_item_count = execute(
+            conn,
+            "SELECT COUNT(*) AS count FROM budget_item WHERE category_id = ?",
+            (category_id,),
+        ).fetchone()["count"]
+        recurring_count = execute(
+            conn,
+            "SELECT COUNT(*) AS count FROM recurring_rule WHERE category_id = ?",
+            (category_id,),
+        ).fetchone()["count"]
 
     return {
         "transactions": transaction_count,
@@ -228,34 +214,36 @@ def get_category_reference_counts(category_id: int):
 
 
 def group_has_referenced_categories(group_id: int) -> bool:
-    category_ids = (
-        select(category.c.category_id)
-        .where(category.c.group_id == group_id)
+    sql_statements = (
+        """
+        SELECT "transaction".transaction_id
+        FROM "transaction"
+        WHERE category_id IN (
+            SELECT category_id FROM category WHERE group_id = ?
+        )
+        LIMIT 1
+        """,
+        """
+        SELECT budget_item.budget_item_id
+        FROM budget_item
+        WHERE category_id IN (
+            SELECT category_id FROM category WHERE group_id = ?
+        )
+        LIMIT 1
+        """,
+        """
+        SELECT recurring_rule.recurring_rule_id
+        FROM recurring_rule
+        WHERE category_id IN (
+            SELECT category_id FROM category WHERE group_id = ?
+        )
+        LIMIT 1
+        """,
     )
 
     with get_conn() as conn:
-        has_transaction = conn.execute(
-            select(transaction.c.transaction_id)
-            .where(transaction.c.category_id.in_(category_ids))
-            .limit(1)
-        ).first()
+        for sql in sql_statements:
+            if execute(conn, sql, (group_id,)).fetchone() is not None:
+                return True
 
-        if has_transaction:
-            return True
-
-        has_budget_item = conn.execute(
-            select(budget_item.c.budget_item_id)
-            .where(budget_item.c.category_id.in_(category_ids))
-            .limit(1)
-        ).first()
-
-        if has_budget_item:
-            return True
-
-        has_recurring = conn.execute(
-            select(recurring_rule.c.recurring_rule_id)
-            .where(recurring_rule.c.category_id.in_(category_ids))
-            .limit(1)
-        ).first()
-
-        return has_recurring is not None
+    return False

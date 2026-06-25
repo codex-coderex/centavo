@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { getUsers, type User } from '$lib/api/users';
-	import AboutSettings from './AboutSettings.svelte';
-	import CategorySettings from './CategorySettings.svelte';
-	import ProfileSettings from './ProfileSettings.svelte';
+	import CategorySettings from './features/categories/components/CategorySettings.svelte';
+	import AboutSettings from './features/general/components/AboutSettings.svelte';
+	import ProfileSettings from './features/general/components/ProfileSettings.svelte';
 
 	let users: User[] = $state([]);
 	let loadingUsers = $state(true);

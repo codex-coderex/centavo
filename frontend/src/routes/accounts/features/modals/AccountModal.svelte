@@ -1,11 +1,7 @@
 <script lang="ts">
 	import type { AccountType } from '$lib/api/accounts';
 	import SearchableCombobox from '$lib/shared/components/SearchableCombobox.svelte';
-
-	export type AccountTypeOption = {
-		value: AccountType;
-		label: string;
-	};
+	import { sanitizeBalance, type AccountTypeOption } from '../utils/accountFormat';
 
 	let {
 		name = $bindable(),
@@ -29,10 +25,7 @@
 
 	function sanitizeBalanceInput(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
-		const next = input.value
-			.replace(/[^\d.]/g, '')
-			.replace(/(\..*)\./g, '$1')
-			.replace(/^(\d*)(\.\d{0,2}).*$/, '$1$2');
+		const next = sanitizeBalance(input.value);
 
 		openingBalance = next;
 		input.value = next;

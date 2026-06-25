@@ -255,7 +255,11 @@ def deactivate_recurring_rule(recurring_rule_id: int):
     return {"status": "inactive"}
 
 
-def generate_transaction(recurring_rule_id: int):
+def _generate_transaction_for_rule(
+    recurring_rule_id: int,
+    transaction_date,
+    advance_next_due: bool,
+):
     recurring = recurring_q.get_recurring_rule(recurring_rule_id)
     if recurring is None:
         raise ValueError("Recurring rule does not exist")
@@ -268,23 +272,12 @@ def generate_transaction(recurring_rule_id: int):
         recurring["expected_amount_minor"],
     )
 
-    next_due_date = calculate_next_due(
-        recurring["next_due_date"],
-        recurring["interval"],
-        recurring["frequency_unit"],
-    )
-
-    end_date = recurring["end_date"]
-
-    if isinstance(end_date, str):
-        end_date = datetime.fromisoformat(end_date)
-
     with get_conn() as conn:
         transaction_id = transactions_q.create_transaction_with_conn(
             conn=conn,
             account_id=recurring["account_id"],
             amount_minor=recurring["expected_amount_minor"],
-            transaction_date=recurring["next_due_date"],
+            transaction_date=transaction_date,
             category_id=recurring["category_id"],
             payee=recurring["name"],
             notes=None,
@@ -292,20 +285,52 @@ def generate_transaction(recurring_rule_id: int):
             transfer_id=None,
         )
 
-        if end_date is not None and next_due_date > end_date:
-            recurring_q.update_recurring_rule_with_conn(
-                conn,
-                recurring_rule_id,
-                status=RecurringStatus.INACTIVE.value,
-            )
-        else:
-            recurring_q.update_recurring_rule_with_conn(
-                conn,
-                recurring_rule_id,
-                next_due_date=next_due_date,
+        if advance_next_due:
+            next_due_date = calculate_next_due(
+                recurring["next_due_date"],
+                recurring["interval"],
+                recurring["frequency_unit"],
             )
 
+            end_date = recurring["end_date"]
+
+            if isinstance(end_date, str):
+                end_date = datetime.fromisoformat(end_date)
+
+            if end_date is not None and next_due_date > end_date:
+                recurring_q.update_recurring_rule_with_conn(
+                    conn,
+                    recurring_rule_id,
+                    status=RecurringStatus.INACTIVE.value,
+                )
+            else:
+                recurring_q.update_recurring_rule_with_conn(
+                    conn,
+                    recurring_rule_id,
+                    next_due_date=next_due_date,
+                )
+
     return {"transaction_id": transaction_id}
+
+
+def generate_transaction(recurring_rule_id: int):
+    return _generate_transaction_for_rule(
+        recurring_rule_id=recurring_rule_id,
+        transaction_date=datetime.now().date().isoformat(),
+        advance_next_due=False,
+    )
+
+
+def generate_due_transaction(recurring_rule_id: int):
+    recurring = recurring_q.get_recurring_rule(recurring_rule_id)
+    if recurring is None:
+        raise ValueError("Recurring rule does not exist")
+
+    return _generate_transaction_for_rule(
+        recurring_rule_id=recurring_rule_id,
+        transaction_date=recurring["next_due_date"],
+        advance_next_due=True,
+    )
 
 
 def calculate_next_due(current_due, interval: int, frequency_unit: str):

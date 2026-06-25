@@ -13,8 +13,8 @@
 		type CategoryGroup,
 		type CategoryGroupType
 	} from '$lib/api/categories';
-	import CategoryGroupModal from './CategoryGroupModal.svelte';
-	import CategoryModal from './CategoryModal.svelte';
+	import CategoryGroupModal from '../modals/CategoryGroupModal.svelte';
+	import CategoryModal from '../modals/CategoryModal.svelte';
 
 	const userId = 1;
 	const categorySections: { type: CategoryGroupType; label: string }[] = [
@@ -42,11 +42,11 @@
 	let selectedGroupId = $state<number | null>(null);
 
 	function categoriesForGroup(groupId: number) {
-		return categories.filter((category) => category.group_id === groupId);
+		return categories.filter((category: Category) => category.group_id === groupId);
 	}
 
 	function groupsForType(type: CategoryGroupType) {
-		return groups.filter((group) => group.type === type);
+		return groups.filter((group: CategoryGroup) => group.type === type);
 	}
 
 	function resetGroupModal() {
@@ -57,7 +57,7 @@
 	function resetCategoryModal() {
 		categoryName = '';
 		categoryType = 'expense';
-		selectedGroupId = groups.find((group) => group.type === 'expense' && group.is_active)?.group_id ?? null;
+		selectedGroupId = groups.find((group: CategoryGroup) => group.type === 'expense' && group.is_active)?.group_id ?? null;
 	}
 
 	function openGroupModal() {
