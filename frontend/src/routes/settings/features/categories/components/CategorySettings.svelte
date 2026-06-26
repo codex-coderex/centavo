@@ -328,17 +328,23 @@
 
 								<div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
 									{#each categoriesForGroup(group.group_id) as category}
+										{@const categoryEnabled = group.is_active && category.is_active}
 										<div
 											class="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
-											style="border-color: var(--app-border); background: var(--app-surface-strong); opacity: {category.is_active ? '1' : '0.55'}"
+											style="border-color: var(--app-border); background: var(--app-surface-strong); opacity: {categoryEnabled ? '1' : '0.55'}"
 										>
 											<div class="min-w-0">
 												<div class="flex items-center gap-2">
-													<span class="h-2.5 w-2.5 rounded-full" style="background: {category.is_active ? 'var(--app-green)' : 'var(--app-muted)'}"></span>
-													<span class="truncate text-sm font-medium">{category.name}</span>
+													<span
+														class="h-2.5 w-2.5 rounded-full"
+														style="background: {categoryEnabled ? 'var(--app-green)' : 'var(--app-muted)'}"
+													></span>
+													<span class="truncate text-sm font-medium" class:text-muted={!categoryEnabled}>
+														{category.name}
+													</span>
 												</div>
 												<p class="text-muted mt-1 text-xs">
-													{category.is_system ? 'system' : 'custom'} · {category.is_active ? 'enabled' : 'disabled'}
+													{category.is_system ? 'system' : 'custom'} · {!group.is_active ? 'disabled by group' : category.is_active ? 'enabled' : 'disabled'}
 												</p>
 											</div>
 

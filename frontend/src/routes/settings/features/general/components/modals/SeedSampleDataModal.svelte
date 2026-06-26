@@ -34,10 +34,7 @@
 			const result = await seedSampleData();
 			onSeeded(result);
 			onClose();
-
-			setTimeout(() => {
-				window.location.reload();
-			}, 500);
+			
 		} catch (error) {
 			seedError = error instanceof Error ? error.message : 'Failed to seed demo data.';
 		} finally {
