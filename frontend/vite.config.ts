@@ -17,7 +17,10 @@ export default defineConfig({
 				pages: 'build',
 				assets: 'build',
 				fallback: 'index.html'
-			})
+			}),
+			paths: {
+				relative: true
+			}
 		})
 	],
 	test: {

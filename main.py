@@ -30,7 +30,7 @@ def main() -> None:
     if frontend_url:
         window_url = frontend_url
     else:
-        window_url = str(BASE_DIR / "frontend" / "app.html")
+        window_url = str(BASE_DIR / "frontend" / "build" / "index.html")
 
     webview.create_window(
         "Centavo",
