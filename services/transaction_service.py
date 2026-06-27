@@ -4,10 +4,23 @@ import db.queries.transactions as transactions_q
 import db.queries.accounts as accounts_q
 import db.queries.budgets as budgets_q
 import db.queries.categories as categories_q
+import db.queries.goals as goals_q
 import db.queries.recurring as recurring_q
 
 from utils.money import to_minor_units
 from utils.dates import require_datetime
+
+
+OVERDRAFT_PROTECTED_ACCOUNT_TYPES = {
+    "checking",
+    "savings",
+    "cash",
+    "investment",
+    "other_asset",
+}
+
+INSUFFICIENT_BALANCE_ERROR = "Insufficient available balance for this transaction"
+INSUFFICIENT_TRANSFER_BALANCE_ERROR = "Insufficient available balance in the source account"
 
 
 def get_transactions_by_user(user_id: int):
@@ -38,6 +51,31 @@ def _ensure_active_account(account_id: int):
         raise ValueError("Account is archived")
 
     return account
+
+
+def _account_available_balance_minor(account_id: int):
+    account = _get_account(account_id)
+    transactions = transactions_q.get_transactions_by_account(account_id)
+    transaction_total = sum(transaction["amount_minor"] for transaction in transactions)
+    allocated_total = goals_q.get_allocated_amount_for_account(account_id)
+
+    return account["opening_balance_minor"] + transaction_total - allocated_total
+
+
+def _prevents_overdraft(account):
+    return account["type"] in OVERDRAFT_PROTECTED_ACCOUNT_TYPES
+
+
+def _ensure_available_balance(
+    account,
+    balance_delta_minor: int,
+    error_message: str = INSUFFICIENT_BALANCE_ERROR,
+):
+    if not _prevents_overdraft(account):
+        return
+
+    if _account_available_balance_minor(account["account_id"]) + balance_delta_minor < 0:
+        raise ValueError(error_message)
 
 
 def _ensure_active_category(category_id: int):
@@ -173,6 +211,8 @@ def create_transaction(
         category_id,
     )
 
+    _ensure_available_balance(account, amount_minor)
+
     transaction_id = transactions_q.create_transaction(
         account_id=account_id,
         amount_minor=amount_minor,
@@ -223,6 +263,12 @@ def create_transfer(
         category_id,
         -amount_minor,
         expected_type="transfer",
+    )
+
+    _ensure_available_balance(
+        from_account,
+        -amount_minor,
+        INSUFFICIENT_TRANSFER_BALANCE_ERROR,
     )
 
     with get_conn() as conn:
@@ -353,6 +399,14 @@ def update_transaction(
         next_category_id,
     )
 
+    if next_account_id == transaction["account_id"]:
+        balance_delta_minor = next_amount_minor - transaction["amount_minor"]
+        _ensure_available_balance(account, balance_delta_minor)
+    else:
+        previous_account = _get_account(transaction["account_id"])
+        _ensure_available_balance(previous_account, -transaction["amount_minor"])
+        _ensure_available_balance(account, next_amount_minor)
+
     if kwargs:
         transactions_q.update_transaction(transaction_id, **kwargs)
 
@@ -416,6 +470,13 @@ def update_transfer(
 
         if amount_minor <= 0:
             raise ValueError("Transfer amount must be greater than zero")
+
+        from_account = _get_account(debit_transaction["account_id"])
+        _ensure_available_balance(
+            from_account,
+            -amount_minor - debit_transaction["amount_minor"],
+            INSUFFICIENT_TRANSFER_BALANCE_ERROR,
+        )
 
         debit_values["amount_minor"] = -amount_minor
         credit_values["amount_minor"] = amount_minor

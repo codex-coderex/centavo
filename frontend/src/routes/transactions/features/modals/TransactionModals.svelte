@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Account } from '$lib/api/accounts';
+	import type { Account, AccountType } from '$lib/api/accounts';
 	import type { Budget, BudgetItem } from '$lib/api/budgets';
 	import type { Category, CategoryGroup, CategoryGroupType } from '$lib/api/categories';
 	import {
@@ -82,12 +82,36 @@
 	let wasCreateOpen = $state(false);
 	let lastEditingTransactionId = $state<number | null>(null);
 
+	const balanceProtectedAccountTypes: AccountType[] = [
+		'checking',
+		'savings',
+		'cash',
+		'investment',
+		'other_asset'
+	];
+
 	function isTransfer(transaction: Transaction) {
 		return transaction.transfer_id !== null && transaction.transfer_id !== undefined;
 	}
 
+	function amountToMinorUnits(value: string) {
+		return Math.round(Number(value) * 100);
+	}
+
 	function groupsForType(type: CategoryGroupType) {
 		return categoryGroups.filter((group: CategoryGroup) => group.type === type);
+	}
+
+	function accountById(accountId: number) {
+		return accounts.find((account: Account) => account.account_id === accountId)
+			?? activeAccounts.find((account: Account) => account.account_id === accountId);
+	}
+
+	function wouldDropBalanceBelowZero(accountId: number, balanceDeltaMinor: number) {
+		const account = accountById(accountId);
+		if (!account || !balanceProtectedAccountTypes.includes(account.type)) return false;
+
+		return account.current_balance_minor + balanceDeltaMinor < 0;
 	}
 
 	function budgetIdForBudgetItem(budgetItemId: number | null | undefined) {
@@ -227,6 +251,23 @@
 			return;
 		}
 
+		const createAmountMinor = amountToMinorUnits(createAmount);
+
+		if (!Number.isFinite(createAmountMinor) || createAmountMinor <= 0) {
+			modalError = 'Amount must be greater than zero.';
+			return;
+		}
+
+		if (createMode === 'expense' && wouldDropBalanceBelowZero(createAccountId, -createAmountMinor)) {
+			modalError = 'Insufficient available balance for this transaction.';
+			return;
+		}
+
+		if (createMode === 'transfer' && wouldDropBalanceBelowZero(createAccountId, -createAmountMinor)) {
+			modalError = 'Insufficient available balance in the source account.';
+			return;
+		}
+
 		saving = true;
 
 		try {
@@ -295,6 +336,53 @@
 		) {
 			modalError = 'The selected budget does not have an item for this category.';
 			return;
+		}
+
+		const editAmountMinor = amountToMinorUnits(editAmount);
+
+		if (!Number.isFinite(editAmountMinor) || editAmountMinor <= 0) {
+			modalError = 'Amount must be greater than zero.';
+			return;
+		}
+
+		if (isTransfer(editingTransaction)) {
+			const debitTransaction = editingTransaction.amount_minor < 0
+				? editingTransaction
+				: transactions.find(
+					(row: Transaction) =>
+						row.transfer_id === editingTransaction?.transfer_id
+						&& row.amount_minor < 0
+				);
+
+			if (
+				debitTransaction
+				&& wouldDropBalanceBelowZero(
+					debitTransaction.account_id,
+					-editAmountMinor - debitTransaction.amount_minor
+				)
+			) {
+				modalError = 'Insufficient available balance in the source account.';
+				return;
+			}
+		} else {
+			const nextAmountMinor = editMode === 'expense' ? -editAmountMinor : editAmountMinor;
+
+			if (editAccountId === editingTransaction.account_id) {
+				if (wouldDropBalanceBelowZero(editAccountId, nextAmountMinor - editingTransaction.amount_minor)) {
+					modalError = 'Insufficient available balance for this transaction.';
+					return;
+				}
+			} else {
+				if (wouldDropBalanceBelowZero(editingTransaction.account_id, -editingTransaction.amount_minor)) {
+					modalError = 'Insufficient available balance for this transaction.';
+					return;
+				}
+
+				if (wouldDropBalanceBelowZero(editAccountId, nextAmountMinor)) {
+					modalError = 'Insufficient available balance for this transaction.';
+					return;
+				}
+			}
 		}
 
 		saving = true;

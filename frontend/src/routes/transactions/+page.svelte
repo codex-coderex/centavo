@@ -331,3 +331,18 @@
 		onConfirm={confirmDeleteTransaction}
 	/>
 {/if}
+
+{#if showDeleteModal && deletingTransaction}
+	<ConfirmActionModal
+		eyebrow={isTransfer(deletingTransaction) ? 'Delete transfer' : 'Delete transaction'}
+		title={isTransfer(deletingTransaction) ? 'Transfer pair' : deletingTransaction.payee ?? 'Transaction'}
+		message={isTransfer(deletingTransaction) ? 'This will delete the transfer pair.' : 'This will delete the transaction.'}
+		detail={isTransfer(deletingTransaction) ? 'Both linked transfer records will be removed. This action cannot be undone.' : 'This transaction will be permanently removed from the ledger. This action cannot be undone.'}
+		confirmLabel={isTransfer(deletingTransaction) ? 'Delete transfer' : 'Delete transaction'}
+		savingLabel="Deleting..."
+		saving={actionSaving}
+		error={actionError}
+		onClose={closeDeleteTransaction}
+		onConfirm={confirmDeleteTransaction}
+	/>
+{/if}
