@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { getAccounts, type Account } from '$lib/api/accounts';
-	import { completeGoal, getGoalAccounts, getGoals, type Goal, type GoalAccount } from '$lib/api/goals';
+	import { getGoalAccounts, getGoals, type Goal, type GoalAccount } from '$lib/api/goals';
 	import GoalModals from './features/modals/GoalModals.svelte';
+	import ArchivedGoalsModal from './features/modals/ArchivedGoalsModal.svelte';
 	import GoalsView from './features/components/GoalsView.svelte';
 
 	const userId = 1;
@@ -13,12 +14,15 @@
 	let editingGoal: Goal | null = $state(null);
 	let fundingGoal: Goal | null = $state(null);
 	let deletingGoal: Goal | null = $state(null);
+	let completingGoal: Goal | null = $state(null);
 	let loading = $state(true);
 	let error = $state('');
 	let notice = $state('');
 	let showGoalModal = $state(false);
 	let showFundsModal = $state(false);
 	let showDeleteModal = $state(false);
+	let showCompleteModal = $state(false);
+	let showArchivedModal = $state(false);
 
 	async function loadPage() {
 		loading = true;
@@ -60,23 +64,24 @@
 		showFundsModal = true;
 	}
 
-	async function markComplete(goal: Goal) {
-		error = '';
+	function openCompleteGoal(goal: Goal) {
 		notice = '';
-
-		try {
-			await completeGoal(goal.goal_id);
-			notice = 'Goal completed.';
-			await loadPage();
-		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
-		}
+		completingGoal = goal;
+		showCompleteModal = true;
 	}
 
 	function openDeleteGoal(goal: Goal) {
 		notice = '';
 		deletingGoal = goal;
 		showDeleteModal = true;
+	}
+
+	function openArchivedGoals() {
+		showArchivedModal = true;
+	}
+
+	function closeArchivedGoals() {
+		showArchivedModal = false;
 	}
 
 	onMount(loadPage);
@@ -90,9 +95,10 @@
 	{error}
 	{notice}
 	onAddGoal={openCreateGoal}
+	onArchivedGoals={openArchivedGoals}
 	onAddFunds={openAddFunds}
 	onEditGoal={openEditGoal}
-	onCompleteGoal={markComplete}
+	onCompleteGoal={openCompleteGoal}
 	onDeleteGoal={openDeleteGoal}
 />
 
@@ -100,12 +106,23 @@
 	bind:showGoalModal
 	bind:showFundsModal
 	bind:showDeleteModal
+	bind:showCompleteModal
 	bind:editingGoal
 	bind:fundingGoal
 	bind:deletingGoal
+	bind:completingGoal
 	{userId}
 	{accounts}
 	{goalAccounts}
 	onRefresh={loadPage}
 	onNotice={(message) => notice = message}
 />
+
+{#if showArchivedModal}
+	<ArchivedGoalsModal
+		goals={goals.filter((goal: Goal) => goal.status === 'completed')}
+		{goalAccounts}
+		{accounts}
+		onClose={closeArchivedGoals}
+	/>
+{/if}

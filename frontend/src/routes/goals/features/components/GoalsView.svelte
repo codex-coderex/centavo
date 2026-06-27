@@ -15,6 +15,7 @@
 		error,
 		notice,
 		onAddGoal,
+		onArchivedGoals,
 		onAddFunds,
 		onEditGoal,
 		onCompleteGoal,
@@ -27,6 +28,7 @@
 		error: string;
 		notice: string;
 		onAddGoal: () => void;
+		onArchivedGoals: () => void;
 		onAddFunds: (goal: Goal) => void;
 		onEditGoal: (goal: Goal) => void;
 		onCompleteGoal: (goal: Goal) => void | Promise<void>;
@@ -39,8 +41,8 @@
 <ToastOnChange {error} {notice} />
 
 <section class="budget-page flex min-h-screen flex-col">
-	<PageHeader eyebrow="Reserve" title="Goals" subtitle={`${goalCounts.active} active · ${goalCounts.completed} completed`}>
-		<GoalsToolbar onAdd={onAddGoal} />
+	<PageHeader eyebrow="Reserve" title="Goals" subtitle={`${goalCounts.active} active · ${goalCounts.completed} archived`}>
+		<GoalsToolbar archivedCount={goalCounts.completed} onAdd={onAddGoal} onArchived={onArchivedGoals} />
 	</PageHeader>
 
 	<div class="flex flex-col gap-5 p-5">

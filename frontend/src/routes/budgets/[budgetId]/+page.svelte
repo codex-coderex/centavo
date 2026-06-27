@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import ConfirmActionModal from '$lib/shared/components/ConfirmActionModal.svelte';
 	import PageHeader from '$lib/shared/components/PageHeader.svelte';
 	import ToastOnChange from '$lib/shared/components/ToastOnChange.svelte';
 	import {
@@ -30,12 +31,18 @@
 	let transactions: Transaction[] = $state([]);
 	let editingBudget: Budget | null = $state(null);
 	let editingBudgetItem: BudgetItem | null = $state(null);
+	let deletingBudget: Budget | null = $state(null);
+	let deletingBudgetItem: BudgetItem | null = $state(null);
 	let loading = $state(true);
 	let loadingItems = $state(false);
 	let error = $state('');
 	let notice = $state('');
+	let actionError = $state('');
+	let actionSaving = $state(false);
 	let showBudgetModal = $state(false);
 	let showBudgetItemModal = $state(false);
+	let showDeleteBudgetModal = $state(false);
+	let showDeleteBudgetItemModal = $state(false);
 
 	let selectedBudgetId = $derived(Number(page.params.budgetId));
 	let expenseCategoryIds = $derived(
@@ -127,37 +134,69 @@
 		showBudgetItemModal = true;
 	}
 
-	async function removeBudget() {
+	function openDeleteBudget() {
 		if (!budget) return;
 
-		const confirmed = confirm(`Delete "${budget.name}"? This will also delete its budget items.`);
-		if (!confirmed) return;
-
-		error = '';
+		actionError = '';
 		notice = '';
+		deletingBudget = budget;
+		showDeleteBudgetModal = true;
+	}
+
+	function closeDeleteBudget() {
+		showDeleteBudgetModal = false;
+		deletingBudget = null;
+		actionError = '';
+		actionSaving = false;
+	}
+
+	async function confirmDeleteBudget() {
+		if (!deletingBudget) return;
+
+		actionError = '';
+		notice = '';
+		actionSaving = true;
 
 		try {
-			await deleteBudget(budget.budget_id);
+			await deleteBudget(deletingBudget.budget_id);
 			await goto('/budgets');
 		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
+			actionError = err instanceof Error ? err.message : String(err);
+		} finally {
+			actionSaving = false;
 		}
 	}
 
-	async function removeBudgetItem(item: BudgetItem) {
-		const category = categories.find((row: Category) => row.category_id === item.category_id);
-		const confirmed = confirm(`Remove budget item for "${category?.name ?? `Category ${item.category_id}`}"?`);
-		if (!confirmed) return;
-
-		error = '';
+	function openDeleteBudgetItem(item: BudgetItem) {
+		actionError = '';
 		notice = '';
+		deletingBudgetItem = item;
+		showDeleteBudgetItemModal = true;
+	}
+
+	function closeDeleteBudgetItem() {
+		showDeleteBudgetItemModal = false;
+		deletingBudgetItem = null;
+		actionError = '';
+		actionSaving = false;
+	}
+
+	async function confirmDeleteBudgetItem() {
+		if (!deletingBudgetItem) return;
+
+		actionError = '';
+		notice = '';
+		actionSaving = true;
 
 		try {
-			await deleteBudgetItem(item.budget_item_id);
+			await deleteBudgetItem(deletingBudgetItem.budget_item_id);
 			notice = 'Budget item removed.';
+			closeDeleteBudgetItem();
 			await refreshBudgetItems();
 		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
+			actionError = err instanceof Error ? err.message : String(err);
+		} finally {
+			actionSaving = false;
 		}
 	}
 
@@ -175,7 +214,7 @@
 		>
 			<button class="secondary-action" type="button" onclick={() => goto('/budgets')}>All budgets</button>
 			<button class="secondary-action" type="button" onclick={openEditBudget}>Edit</button>
-			<button class="danger-action" type="button" onclick={removeBudget}>Delete</button>
+			<button class="danger-action" type="button" onclick={openDeleteBudget}>Delete</button>
 			<button class="primary-action" type="button" onclick={openCreateBudgetItem}>+ Add item</button>
 		</PageHeader>
 	{:else}
@@ -195,7 +234,7 @@
 				{transactions}
 				loading={loadingItems}
 				onEditItem={openEditBudgetItem}
-				onDeleteItem={removeBudgetItem}
+				onDeleteItem={openDeleteBudgetItem}
 			/>
 		{/if}
 	</div>
@@ -214,3 +253,34 @@
 	onRefreshBudgetItems={refreshBudgetItems}
 	onNotice={(message) => notice = message}
 />
+
+{#if showDeleteBudgetModal && deletingBudget}
+	<ConfirmActionModal
+		eyebrow="Delete budget"
+		title={deletingBudget.name}
+		message="This will delete the budget."
+		detail="All budget items under this budget will also be removed. This action cannot be undone."
+		confirmLabel="Delete budget"
+		savingLabel="Deleting..."
+		saving={actionSaving}
+		error={actionError}
+		onClose={closeDeleteBudget}
+		onConfirm={confirmDeleteBudget}
+	/>
+{/if}
+
+{#if showDeleteBudgetItemModal && deletingBudgetItem}
+	{@const category = categories.find((row: Category) => row.category_id === deletingBudgetItem.category_id)}
+	<ConfirmActionModal
+		eyebrow="Remove budget item"
+		title={category?.name ?? `Category ${deletingBudgetItem.category_id}`}
+		message="This will remove the budget item."
+		detail="The planned amount for this category will be removed from the budget. Existing transactions are not deleted."
+		confirmLabel="Remove item"
+		savingLabel="Removing..."
+		saving={actionSaving}
+		error={actionError}
+		onClose={closeDeleteBudgetItem}
+		onConfirm={confirmDeleteBudgetItem}
+	/>
+{/if}

@@ -11,6 +11,7 @@
 		resumeRecurringRule,
 		type RecurringRule
 	} from '$lib/api/recurring';
+	import ConfirmActionModal from '$lib/shared/components/ConfirmActionModal.svelte';
 	import RecurringView from './features/components/RecurringView.svelte';
 	import RecurringModals from './features/modals/RecurringModals.svelte';
 
@@ -21,10 +22,14 @@
 	let categories: Category[] = $state([]);
 	let categoryGroups: CategoryGroup[] = $state([]);
 	let editingRule: RecurringRule | null = $state(null);
+	let deactivatingRule: RecurringRule | null = $state(null);
 	let loading = $state(true);
 	let error = $state('');
 	let notice = $state('');
+	let actionError = $state('');
+	let actionSaving = $state(false);
 	let showRuleModal = $state(false);
+	let showDeactivateModal = $state(false);
 	let showArchived = $state(false);
 
 	let visibleRecurringRules = $derived(
@@ -110,20 +115,38 @@
 		}
 	}
 
-	async function deactivateRule(rule: RecurringRule) {
-		if (!confirm(`Deactivate "${rule.name || 'this recurring rule'}"? It will stop generating transactions.`)) {
-			return;
-		}
+	function openDeactivateRule(rule: RecurringRule) {
+		error = '';
+		notice = '';
+		actionError = '';
+		deactivatingRule = rule;
+		showDeactivateModal = true;
+	}
+
+	function closeDeactivateRule() {
+		showDeactivateModal = false;
+		deactivatingRule = null;
+		actionError = '';
+		actionSaving = false;
+	}
+
+	async function confirmDeactivateRule() {
+		if (!deactivatingRule) return;
 
 		error = '';
 		notice = '';
+		actionError = '';
+		actionSaving = true;
 
 		try {
-			await deactivateRecurringRule(rule.recurring_rule_id);
+			await deactivateRecurringRule(deactivatingRule.recurring_rule_id);
 			notice = 'Recurring rule deactivated.';
+			closeDeactivateRule();
 			await loadPage();
 		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
+			actionError = err instanceof Error ? err.message : String(err);
+		} finally {
+			actionSaving = false;
 		}
 	}
 
@@ -163,7 +186,7 @@
 	onResume={resumeRule}
 	onGenerate={generateNow}
 	onEdit={openEditRule}
-	onDeactivate={deactivateRule}
+	onDeactivate={openDeactivateRule}
 	onDelete={deleteRule}
 />
 
@@ -176,3 +199,19 @@
 	onRefresh={loadPage}
 	onNotice={(message) => notice = message}
 />
+
+{#if showDeactivateModal && deactivatingRule}
+	<ConfirmActionModal
+		eyebrow="Deactivate recurring rule"
+		title={deactivatingRule.name || 'Recurring rule'}
+		message="This will deactivate the recurring rule."
+		detail="It will stop generating future transactions and move to the archived recurring rules view."
+		confirmLabel="Deactivate rule"
+		savingLabel="Deactivating..."
+		saving={actionSaving}
+		error={actionError}
+		variant="warning"
+		onClose={closeDeactivateRule}
+		onConfirm={confirmDeactivateRule}
+	/>
+{/if}

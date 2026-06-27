@@ -2,6 +2,7 @@
 	import type { Account } from '$lib/api/accounts';
 	import {
 		addAccountToGoal,
+		completeGoal,
 		createGoal,
 		deleteGoal,
 		removeAccountFromGoal,
@@ -12,6 +13,7 @@
 	import { dateInputValue } from '../utils/goalFormat';
 	import { allocatedForGoal, allocationsForGoal } from '../utils/goalTotals';
 	import AddGoalFundsModal from './AddGoalFundsModal.svelte';
+	import CompleteGoalModal from './CompleteGoalModal.svelte';
 	import DeleteGoalModal from './DeleteGoalModal.svelte';
 	import GoalModal from './GoalModal.svelte';
 
@@ -19,9 +21,11 @@
 		showGoalModal = $bindable(),
 		showFundsModal = $bindable(),
 		showDeleteModal = $bindable(),
+		showCompleteModal = $bindable(),
 		editingGoal = $bindable(),
 		fundingGoal = $bindable(),
 		deletingGoal = $bindable(),
+		completingGoal = $bindable(),
 		userId,
 		accounts,
 		goalAccounts,
@@ -31,9 +35,11 @@
 		showGoalModal: boolean;
 		showFundsModal: boolean;
 		showDeleteModal: boolean;
+		showCompleteModal: boolean;
 		editingGoal: Goal | null;
 		fundingGoal: Goal | null;
 		deletingGoal: Goal | null;
+		completingGoal: Goal | null;
 		userId: number;
 		accounts: Account[];
 		goalAccounts: GoalAccount[];
@@ -97,6 +103,13 @@
 	function closeDeleteModal() {
 		showDeleteModal = false;
 		deletingGoal = null;
+		modalError = '';
+		saving = false;
+	}
+
+	function closeCompleteModal() {
+		showCompleteModal = false;
+		completingGoal = null;
 		modalError = '';
 		saving = false;
 	}
@@ -207,6 +220,28 @@
 		}
 	}
 
+	async function confirmCompleteGoal() {
+		modalError = '';
+
+		if (!completingGoal) {
+			modalError = 'Goal does not exist.';
+			return;
+		}
+
+		saving = true;
+
+		try {
+			await completeGoal(completingGoal.goal_id);
+			onNotice('Goal completed and archived.');
+			closeCompleteModal();
+			await onRefresh();
+		} catch (err) {
+			modalError = err instanceof Error ? err.message : String(err);
+		} finally {
+			saving = false;
+		}
+	}
+
 	async function confirmDeleteGoal() {
 		modalError = '';
 
@@ -244,6 +279,17 @@
 		savingLabel={editingGoal ? 'Saving...' : 'Creating...'}
 		onClose={closeGoalModal}
 		onSubmit={submitGoal}
+	/>
+{/if}
+
+{#if showCompleteModal && completingGoal}
+	<CompleteGoalModal
+		goal={completingGoal}
+		allocatedAmount={allocatedForGoal(completingGoal.goal_id, goalAccounts)}
+		{saving}
+		error={modalError}
+		onClose={closeCompleteModal}
+		onConfirm={confirmCompleteGoal}
 	/>
 {/if}
 

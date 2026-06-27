@@ -8,6 +8,7 @@
 		type Account,
 		type AccountType
 	} from '$lib/api/accounts';
+	import ConfirmActionModal from '$lib/shared/components/ConfirmActionModal.svelte';
 	import AccountsView from './features/components/AccountsView.svelte';
 	import AccountModal from './features/modals/AccountModal.svelte';
 	import ArchivedAccountsModal from './features/modals/ArchivedAccountsModal.svelte';
@@ -25,6 +26,7 @@
 	let accounts: Account[] = $state([]);
 	let archivedAccounts: Account[] = $state([]);
 	let editingAccount: Account | null = $state(null);
+	let archivingAccount: Account | null = $state(null);
 	let loading = $state(true);
 	let saving = $state(false);
 	let restoringId: number | null = $state(null);
@@ -36,6 +38,7 @@
 	let showAccountModal = $state(false);
 	let showEditModal = $state(false);
 	let showArchivedModal = $state(false);
+	let showArchiveConfirmModal = $state(false);
 	let editReturnToArchived = $state(false);
 
 	let name = $state('');
@@ -179,20 +182,35 @@
 		}
 	}
 
-	async function archive(account: Account) {
-		const confirmed = confirm(`Archive "${account.name}"?`);
+	function openArchiveConfirm(account: Account) {
+		error = '';
+		notice = '';
+		archivingAccount = account;
+		showArchiveConfirmModal = true;
+	}
 
-		if (!confirmed) return;
+	function closeArchiveConfirm() {
+		showArchiveConfirmModal = false;
+		archivingAccount = null;
+		saving = false;
+	}
+
+	async function confirmArchive() {
+		if (!archivingAccount) return;
 
 		error = '';
 		notice = '';
+		saving = true;
 
 		try {
-			await archiveAccount(account.account_id);
+			await archiveAccount(archivingAccount.account_id);
 			notice = 'Account archived.';
+			closeArchiveConfirm();
 			await loadAccounts();
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
+		} finally {
+			saving = false;
 		}
 	}
 
@@ -224,7 +242,7 @@
 	onAdd={openAccountModal}
 	onArchived={openArchivedModal}
 	onEdit={openEditModal}
-	onArchive={archive}
+	onArchive={openArchiveConfirm}
 />
 
 {#if showAccountModal}
@@ -237,6 +255,22 @@
 		{saving}
 		onClose={closeAccountModal}
 		onSubmit={submitAccount}
+	/>
+{/if}
+
+{#if showArchiveConfirmModal && archivingAccount}
+	<ConfirmActionModal
+		eyebrow="Archive account"
+		title={archivingAccount.name}
+		message="This will archive the account."
+		detail="Archived accounts are hidden from the active account list but can be enabled again later."
+		confirmLabel="Archive account"
+		savingLabel="Archiving..."
+		{saving}
+		error={error}
+		variant="warning"
+		onClose={closeArchiveConfirm}
+		onConfirm={confirmArchive}
 	/>
 {/if}
 

@@ -79,8 +79,14 @@ def update_goal(goal_id: int, name: str | None = None, target_amount=None, targe
 
 
 def complete_goal(goal_id: int):
-    if goals_q.get_goal(goal_id) is None:
+    goal = goals_q.get_goal(goal_id)
+    if goal is None:
         raise ValueError("Goal does not exist")
+    if goal["status"] != GoalStatus.ACTIVE.value:
+        raise ValueError("Only active goals can be completed")
+
+    for goal_account in goals_q.get_goal_accounts(goal_id):
+        goals_q.delete_goal_account(goal_id, goal_account["account_id"])
 
     goals_q.update_goal(
         goal_id,
@@ -91,8 +97,11 @@ def complete_goal(goal_id: int):
 
 
 def delete_goal(goal_id: int):
-    if goals_q.get_goal(goal_id) is None:
+    goal = goals_q.get_goal(goal_id)
+    if goal is None:
         raise ValueError("Goal does not exist")
+    if goal["status"] != GoalStatus.ACTIVE.value:
+        raise ValueError("Only active goals can be deleted")
 
     goals_q.delete_goal(goal_id)
 

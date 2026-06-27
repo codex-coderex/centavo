@@ -3,6 +3,7 @@
 	import { getAccounts, type Account } from '$lib/api/accounts';
 	import { getBudgetItems, getBudgets, type Budget, type BudgetItem } from '$lib/api/budgets';
 	import { getAllCategories, getCategoryGroups, type Category, type CategoryGroup, type CategoryGroupType } from '$lib/api/categories';
+	import ConfirmActionModal from '$lib/shared/components/ConfirmActionModal.svelte';
 	import PageHeader from '$lib/shared/components/PageHeader.svelte';
 	import ToastOnChange from '$lib/shared/components/ToastOnChange.svelte';
 	import {
@@ -44,7 +45,11 @@
 	let notice = $state('');
 	let showCreateModal = $state(false);
 	let showEditModal = $state(false);
+	let showDeleteModal = $state(false);
 	let editingTransaction: Transaction | null = $state(null);
+	let deletingTransaction: Transaction | null = $state(null);
+	let actionSaving = $state(false);
+	let actionError = $state('');
 	let filterAccountIds: number[] = $state([]);
 	let filterTypes: CategoryGroupType[] = $state([]);
 	let filterCategoryGroupIds: number[] = $state([]);
@@ -174,30 +179,44 @@
 		showEditModal = true;
 	}
 
-	async function removeTransaction(transaction: Transaction) {
-		const confirmed = confirm(
-			isTransfer(transaction)
-				? 'Delete this transfer pair?'
-				: `Delete "${transaction.payee ?? 'this transaction'}"?`
-		);
+	function openDeleteTransaction(transaction: Transaction) {
+		error = '';
+		notice = '';
+		actionError = '';
+		deletingTransaction = transaction;
+		showDeleteModal = true;
+	}
 
-		if (!confirmed) return;
+	function closeDeleteTransaction() {
+		showDeleteModal = false;
+		deletingTransaction = null;
+		actionError = '';
+		actionSaving = false;
+	}
+
+	async function confirmDeleteTransaction() {
+		if (!deletingTransaction) return;
 
 		error = '';
 		notice = '';
+		actionError = '';
+		actionSaving = true;
 
 		try {
-			if (isTransfer(transaction)) {
-				await deleteTransfer(transaction.transfer_id!);
+			if (isTransfer(deletingTransaction)) {
+				await deleteTransfer(deletingTransaction.transfer_id!);
 				notice = 'Transfer deleted.';
 			} else {
-				await deleteTransaction(transaction.transaction_id);
+				await deleteTransaction(deletingTransaction.transaction_id);
 				notice = 'Transaction deleted.';
 			}
 
+			closeDeleteTransaction();
 			await loadPage();
 		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
+			actionError = err instanceof Error ? err.message : String(err);
+		} finally {
+			actionSaving = false;
 		}
 	}
 
@@ -274,7 +293,7 @@
 				{tags}
 				{transactionTagIds}
 				onEdit={openEditModal}
-				onDelete={removeTransaction}
+				onDelete={openDeleteTransaction}
 			/>
 		</div>
 	</div>
@@ -297,3 +316,18 @@
 	onRefresh={loadPage}
 	onNotice={(message) => notice = message}
 />
+
+{#if showDeleteModal && deletingTransaction}
+	<ConfirmActionModal
+		eyebrow={isTransfer(deletingTransaction) ? 'Delete transfer' : 'Delete transaction'}
+		title={isTransfer(deletingTransaction) ? 'Transfer pair' : deletingTransaction.payee ?? 'Transaction'}
+		message={isTransfer(deletingTransaction) ? 'This will delete the transfer pair.' : 'This will delete the transaction.'}
+		detail={isTransfer(deletingTransaction) ? 'Both linked transfer records will be removed. This action cannot be undone.' : 'This transaction will be permanently removed from the ledger. This action cannot be undone.'}
+		confirmLabel={isTransfer(deletingTransaction) ? 'Delete transfer' : 'Delete transaction'}
+		savingLabel="Deleting..."
+		saving={actionSaving}
+		error={actionError}
+		onClose={closeDeleteTransaction}
+		onConfirm={confirmDeleteTransaction}
+	/>
+{/if}
